@@ -13,6 +13,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
+# Mapa de Backups conforme fornecido
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
@@ -25,7 +26,7 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE ---
+# --- ACESSIBILIDADE ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -145,14 +146,23 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
-        # --- BUSCAR APRESENTADOR (FORMATO TABELA EXCEL) ---
+        # --- BUSCAR APRESENTADOR (TABELA COM BOTÃO AGENDAR) ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
-            df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana"]]
+            df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana", "Link"]]
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
-            # Exibição em tabela como solicitado
-            st.dataframe(df_p, use_container_width=True, hide_index=True)
+            
+            # Configurando a tabela com coluna de link clicável
+            st.dataframe(
+                df_p,
+                column_config={
+                    "Semana": st.column_config.NumberColumn("Sem.", width="small"),
+                    "Link": st.column_config.LinkColumn("📅 Agendar", display_text="Agendar no Outlook")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
             st.divider()
 
         st.subheader("🗓️ Visualização por Semana")
