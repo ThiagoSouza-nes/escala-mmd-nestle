@@ -25,39 +25,53 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE VOZ (VERSÃO CORRIGIDA PARA STREAMLIT) ---
-def disparar_leitura_total():
-    """Injeta um script que acessa o documento pai para ler os textos da página."""
+# --- SCRIPT DE ACESSIBILIDADE (LEITURA AO PASSAR O MOUSE) ---
+def injetar_leitor_acessibilidade():
+    """Injeta um script que lê o texto sob o cursor do mouse."""
     components.html("""
         <script>
-            function executarLeitura() {
-                // Cancela qualquer fala anterior
-                window.speechSynthesis.cancel();
-                
-                // Acessa o documento pai (onde o Streamlit renderiza os elementos)
-                const docAlvo = window.parent.document;
-                
-                // Seleciona títulos, parágrafos, spans e containers de markdown do Streamlit
-                let elementos = docAlvo.querySelectorAll('h1, h2, h3, [data-testid="stMarkdownContainer"] p, b, span');
-                
-                let narracao = "";
-                elementos.forEach(el => {
-                    let t = el.innerText.trim();
-                    // Filtra ruídos, links e textos muito curtos
-                    if(t.length > 2 && !t.includes("http") && !t.includes("://")) {
-                        narracao += t + ". ";
-                    }
-                });
+            const synth = window.speechSynthesis;
+            let ultimaLeitura = "";
 
-                if(narracao.length > 0) {
-                    let msg = new SpeechSynthesisUtterance(narracao);
-                    msg.lang = 'pt-BR';
-                    msg.rate = 1.0;
-                    window.speechSynthesis.speak(msg);
-                }
+            // Função para falar o texto
+            function falar(texto) {
+                if (texto === ultimaLeitura || synth.speaking) return;
+                
+                // Limpa falas anteriores para não encavalar
+                synth.cancel();
+                
+                const ut = new SpeechSynthesisUtterance(texto);
+                ut.lang = 'pt-BR';
+                ut.rate = 1.2;
+                ultimaLeitura = texto;
+                synth.speak(ut);
+                
+                // Reset da última leitura após 2 segundos para permitir ler o mesmo campo de novo
+                setTimeout(() => { ultimaLeitura = ""; }, 2000);
             }
-            // Delay de 1 segundo para garantir que os cards carregaram
-            setTimeout(executarLeitura, 1000);
+
+            // Listener para o documento pai (Streamlit)
+            const doc = window.parent.document;
+
+            doc.addEventListener('mouseover', (e) => {
+                // Captura o elemento sob o mouse
+                const el = e.target;
+                
+                // Filtra para ler apenas elementos que contenham texto útil
+                const tagsValidas = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON'];
+                if (tagsValidas.includes(el.tagName)) {
+                    const texto = el.innerText.trim();
+                    if (texto.length > 1) {
+                        falar(texto);
+                    }
+                }
+            });
+
+            // Opcional: Para usuários que usam o Teclado (TAB)
+            doc.addEventListener('focusin', (e) => {
+                const texto = e.target.innerText || e.target.value;
+                if (texto) falar(texto);
+            });
         </script>
     """, height=0, width=0)
 
@@ -105,12 +119,10 @@ def gerar_escala_final(nomes):
         data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
         d_nome = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"][d_sem]
         aps_sem = [item['Apresentador'] for item in escala if item['Semana'] == sem]
-        
         while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
         ap_m = fila_f[idx_f % len(fila_f)]
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": MAPA_BACKUPS.get(ap_m, "N/A"), "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
         aps_sem.append(ap_m); idx_f += 1
-        
         if d_sem in [1, 3]: 
             while fila_d[idx_d % len(fila_d)] in aps_sem: idx_d += 1
             ap_d = fila_d[idx_d % len(fila_d)]
@@ -124,13 +136,14 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
+    # Note que usamos tags <b> e <span> para que o leitor JS as identifique facilmente
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 190px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
-        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
+        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 Apresentador: {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <div style="margin-top: 10px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
+            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">AGENDAR REUNIÃO</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -139,43 +152,26 @@ def renderizar_card(row):
 if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
+        # Injeta o leitor silenciosamente na página
+        injetar_leitor_acessibilidade()
+        
         df_total = gerar_escala_final(nomes_lista)
         
-        # Sidebar
-        st.sidebar.title("Configurações")
-        
-        if st.sidebar.button("🔊 LER PÁGINA AGORA", use_container_width=True):
-            st.session_state.voz = True
-            disparar_leitura_total()
-        
-        if st.sidebar.button("🔴 PARAR LEITURA", use_container_width=True):
-            st.session_state.voz = False
-            components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
-            st.rerun()
-
         st.title("🚀 MMD | Dashboard de Apresentações")
+        st.caption("Acessibilidade: Passe o mouse sobre os itens para ouvir o conteúdo.")
         
         # Filtros
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
-        if filtro_nome != "Todos":
-            df_p = df_total[df_total["Apresentador"] == filtro_nome]
-            st.info(f"📊 {filtro_nome} tem {len(df_p)} apresentações em 2026.")
-            st.dataframe(df_p[["Data", "Dia", "Reunião", "Backup"]], hide_index=True, use_container_width=True)
-
+        
         st.subheader("🗓️ Visualização por Semana")
-        # Ajuste dinâmico da semana atual para 2026
-        sem_atual = 1 
-        sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
+        sem_atual = 1
+        sem_busca = st.select_slider("Arraste para mudar a semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
         
-        # Organização por data
         for d_label, group in df_semana.groupby("Data", sort=False):
-            st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
+            st.markdown(f"### {group['Dia'].iloc[0]} - {d_label}")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
                 with cols[i]:
                     renderizar_card(row)
-
-    else:
-        st.error("Não foi possível carregar os nomes da planilha. Verifique a URL e as permissões.")
