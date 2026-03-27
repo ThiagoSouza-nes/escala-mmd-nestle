@@ -13,7 +13,6 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Dicionário atualizado com Anna Laura e Faiha conforme imagem
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
@@ -85,7 +84,7 @@ def criar_link_outlook(data_str, reuniao, apresentador):
         return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_end}"
     except: return "#"
 
-@st.cache_data(ttl=5) # Cache reduzido para atualizar mais rápido conforme sua edição na planilha
+@st.cache_data(ttl=5)
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
@@ -102,20 +101,19 @@ def gerar_escala_final(nomes):
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
         aps_sem = [item['Apresentador'] for item in escala if item['Semana'] == sem]
         
-        # Flash Manhã
         while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
         ap_m = fila_f[idx_f % len(fila_f)]
         bkp1 = MAPA_BACKUPS.get(ap_m, "N/A"); bkp2 = MAPA_BACKUPS.get(bkp1, "N/A"); bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": bkp1, "Backup2": bkp2, "Backup3": bkp3, "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
         aps_sem.append(ap_m); idx_f += 1
         
-        if d_sem in [1, 3]: # DOR
+        if d_sem in [1, 3]: 
             while fila_d[idx_d % len(fila_d)] in aps_sem: idx_d += 1
             ap_d = fila_d[idx_d % len(fila_d)]
             bkp1_d = MAPA_BACKUPS.get(ap_d, "N/A"); bkp2_d = MAPA_BACKUPS.get(bkp1_d, "N/A"); bkp3_d = MAPA_BACKUPS.get(bkp2_d, "N/A")
             escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "DOR", "Apresentador": ap_d, "Backup": bkp1_d, "Backup2": bkp2_d, "Backup3": bkp3_d, "Link": criar_link_outlook(data_s, "DOR", ap_d)})
             idx_d += 1
-        else: # Flash Tarde
+        else:
             while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
             ap_t = fila_f[idx_f % len(fila_f)]
             bkp1_t = MAPA_BACKUPS.get(ap_t, "N/A"); bkp2_t = MAPA_BACKUPS.get(bkp1_t, "N/A"); bkp3_t = MAPA_BACKUPS.get(bkp2_t, "N/A")
@@ -123,16 +121,19 @@ def gerar_escala_final(nomes):
             idx_f += 1
     return pd.DataFrame(escala)
 
-def renderizar_card(row):
+def renderizar_card(row, mostrar_header=False):
+    # Header opcional para quando for busca individual
+    header_html = f"<small style='color: #666;'>{row['Dia']} - {row['Data']}<br><b>Semana: {row['Semana']}</b></small><br><br>" if mostrar_header else ""
+    
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 210px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 220px; margin-bottom: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
-        <small style="color: #666;">{row['Dia']} - {row['Data']}</small><br><br>
+        {header_html}
         <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <span title="Próximo Backup: {row['Backup3']}" style="font-size: 13px; color: #777; cursor: help; display: block; margin-top: 3px;">🛡️ Backup 2: {row['Backup2']}</span><br>
         <div style="margin-top: 15px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
+            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 10px; border-radius: 5px; font-size: 12px; text-align: center; font-weight: bold;">🗓️ AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -149,18 +150,18 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
-        # --- BUSCAR APRESENTADOR (CORRIGIDO) ---
+        # --- BUSCAR APRESENTADOR ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
             df_p = df_total[df_total["Apresentador"] == filtro_nome]
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
             
-            # Exibe as reuniões do apresentador em formato de cards
+            # Cards na busca individual com Semana marcada
             cols_busca = st.columns(3)
             for i, (_, row) in enumerate(df_p.iterrows()):
                 with cols_busca[i % 3]:
-                    renderizar_card(row)
+                    renderizar_card(row, mostrar_header=True)
             st.divider()
 
         st.subheader("🗓️ Visualização por Semana")
@@ -172,4 +173,5 @@ if check_login():
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
-                with cols[i]: renderizar_card(row)
+                with cols[i]: 
+                    renderizar_card(row, mostrar_header=False)
