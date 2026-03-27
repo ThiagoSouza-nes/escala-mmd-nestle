@@ -25,50 +25,46 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- SCRIPT DE ACESSIBILIDADE (LEITURA AO PASSAR O MOUSE) ---
+# --- FUNÇÃO DE ACESSIBILIDADE (LEITURA AO PASSAR O MOUSE) ---
 def injetar_leitor_acessibilidade():
-    """Injeta um script que lê o texto sob o cursor do mouse."""
+    """Injeta um script que lê o texto sob o cursor do mouse (Hover)."""
     components.html("""
         <script>
             const synth = window.speechSynthesis;
             let ultimaLeitura = "";
 
-            // Função para falar o texto
             function falar(texto) {
                 if (texto === ultimaLeitura || synth.speaking) return;
-                
-                // Limpa falas anteriores para não encavalar
-                synth.cancel();
+                synth.cancel(); // Para a fala anterior para ler a nova imediatamente
                 
                 const ut = new SpeechSynthesisUtterance(texto);
                 ut.lang = 'pt-BR';
-                ut.rate = 1.2;
+                ut.rate = 1.1;
                 ultimaLeitura = texto;
                 synth.speak(ut);
                 
-                // Reset da última leitura após 2 segundos para permitir ler o mesmo campo de novo
-                setTimeout(() => { ultimaLeitura = ""; }, 2000);
+                // Limpa o cache da última leitura após breve delay
+                setTimeout(() => { ultimaLeitura = ""; }, 1500);
             }
 
-            // Listener para o documento pai (Streamlit)
-            const doc = window.parent.document;
+            // Acessa o documento principal do Streamlit
+            const docAlvo = window.parent.document;
 
-            doc.addEventListener('mouseover', (e) => {
-                // Captura o elemento sob o mouse
+            // Detecta quando o mouse passa sobre um elemento
+            docAlvo.addEventListener('mouseover', (e) => {
                 const el = e.target;
+                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL'];
                 
-                // Filtra para ler apenas elementos que contenham texto útil
-                const tagsValidas = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON'];
-                if (tagsValidas.includes(el.tagName)) {
+                if (tagsInteresse.includes(el.tagName)) {
                     const texto = el.innerText.trim();
-                    if (texto.length > 1) {
+                    if (texto.length > 1 && !texto.includes("http")) {
                         falar(texto);
                     }
                 }
             });
-
-            // Opcional: Para usuários que usam o Teclado (TAB)
-            doc.addEventListener('focusin', (e) => {
+            
+            // Suporte para navegação via teclado (TAB)
+            docAlvo.addEventListener('focusin', (e) => {
                 const texto = e.target.innerText || e.target.value;
                 if (texto) falar(texto);
             });
@@ -136,14 +132,13 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
-    # Note que usamos tags <b> e <span> para que o leitor JS as identifique facilmente
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 190px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
-        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 Apresentador: {row['Apresentador']}</span><br><br>
+        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <div style="margin-top: 10px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">AGENDAR REUNIÃO</a>
+            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -152,26 +147,27 @@ def renderizar_card(row):
 if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
-        # Injeta o leitor silenciosamente na página
+        # Injeta o leitor de mouse hover automaticamente
         injetar_leitor_acessibilidade()
         
         df_total = gerar_escala_final(nomes_lista)
         
         st.title("🚀 MMD | Dashboard de Apresentações")
-        st.caption("Acessibilidade: Passe o mouse sobre os itens para ouvir o conteúdo.")
         
         # Filtros
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
-        
+        if filtro_nome != "Todos":
+            df_p = df_total[df_total["Apresentador"] == filtro_nome]
+            st.info(f"📊 {filtro_nome} tem {len(df_p)} apresentações em 2026.")
+            st.dataframe(df_p[["Data", "Dia", "Reunião", "Backup"]], hide_index=True, use_container_width=True)
+
         st.subheader("🗓️ Visualização por Semana")
-        sem_atual = 1
-        sem_busca = st.select_slider("Arraste para mudar a semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
+        sem_atual = datetime.now().isocalendar()[1]
+        sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
-        
         for d_label, group in df_semana.groupby("Data", sort=False):
-            st.markdown(f"### {group['Dia'].iloc[0]} - {d_label}")
+            st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
-                with cols[i]:
-                    renderizar_card(row)
+                with cols[i]: renderizar_card(row)
