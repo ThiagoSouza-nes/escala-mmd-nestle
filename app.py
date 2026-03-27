@@ -1,5 +1,5 @@
 import streamlit as st
-import pd as pd
+import pandas as pd
 from datetime import datetime
 import urllib.parse
 import streamlit.components.v1 as components
@@ -25,7 +25,7 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA) ---
+# --- FUNÇÃO DE ACESSIBILIDADE ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -122,7 +122,6 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
-    # Correção do bug visual: Removido st.code e garantido unsafe_allow_html
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 180px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
@@ -146,12 +145,13 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
-        # --- BUSCAR APRESENTADOR (FORMATO EXCEL/TABELA) ---
+        # --- BUSCAR APRESENTADOR (FORMATO TABELA EXCEL) ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
             df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana"]]
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
+            # Exibição em tabela como solicitado
             st.dataframe(df_p, use_container_width=True, hide_index=True)
             st.divider()
 
