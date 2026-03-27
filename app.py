@@ -13,7 +13,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Mapa de Backups (Garante que Anna Laura seja backup da Bruna e Soledad da Anna)
+# Mapa de Backups (Permanecem conforme sua definição)
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
@@ -92,11 +92,15 @@ def carregar_nomes():
         return sorted(df['Funcionario'].dropna().unique().tolist())
     except: return []
 
+# --- LÓGICA DE ESCALA COM ANO AUTOMÁTICO ---
 def gerar_escala_final(nomes):
-    dias = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
+    ano_atual = datetime.now().year # Mudança para automação anual
+    dias = pd.date_range(datetime(ano_atual, 1, 1), datetime(ano_atual, 12, 31), freq='B')
+    
     fila_f, escala = nomes.copy(), []
     fila_d = [n for n in nomes if n not in ["Dani", "Rafael"]]
     idx_f, idx_d = 0, 0
+    
     for dia in dias:
         data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
@@ -123,7 +127,6 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
-    # Layout do card semanal
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 180px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
@@ -145,16 +148,15 @@ if check_login():
         if acessibilidade: injetar_leitor_acessibilidade()
 
         df_total = gerar_escala_final(nomes_lista)
-        st.title("🚀 MMD | Dashboard de Apresentações")
+        st.title(f"🚀 MMD | Dashboard de Apresentações {datetime.now().year}")
         
-        # --- BUSCAR APRESENTADOR (TABELA UNIFORME) ---
+        # --- BUSCAR APRESENTADOR ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
             df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana", "Link"]]
-            st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
+            st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em {datetime.now().year}.")
             
-            # Tabela Excel com larguras de coluna ajustadas
             st.dataframe(
                 df_p,
                 column_config={
