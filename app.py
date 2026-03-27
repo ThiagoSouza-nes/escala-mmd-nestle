@@ -13,7 +13,7 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Mapa de Backups conforme fornecido
+# Mapa de Backups atualizado (Anna Laura e Faiha)
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
@@ -26,7 +26,7 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- ACESSIBILIDADE ---
+# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA INTEGRALMENTE) ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -85,7 +85,7 @@ def criar_link_outlook(data_str, reuniao, apresentador):
         return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_end}"
     except: return "#"
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5) # TTL reduzido para atualização rápida
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
@@ -123,6 +123,7 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
+    # Renderização HTML para cards semanais corrigida
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 180px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
@@ -146,19 +147,22 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
-        # --- BUSCAR APRESENTADOR (TABELA COM BOTÃO AGENDAR) ---
+        # --- BUSCAR APRESENTADOR (TABELA COM DISTRIBUIÇÃO UNIFORME) ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
             df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana", "Link"]]
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
             
-            # Configurando a tabela com coluna de link clicável
+            # Tabela estilo Excel com colunas redimensionadas
             st.dataframe(
                 df_p,
                 column_config={
+                    "Data": st.column_config.TextColumn("Data", width="medium"),
+                    "Dia": st.column_config.TextColumn("Dia", width="medium"),
+                    "Reunião": st.column_config.TextColumn("Reunião", width="large"),
                     "Semana": st.column_config.NumberColumn("Sem.", width="small"),
-                    "Link": st.column_config.LinkColumn("📅 Agendar", display_text="Agendar no Outlook")
+                    "Link": st.column_config.LinkColumn("📅 Agendar", display_text="Agendar no Outlook", width="small")
                 },
                 use_container_width=True,
                 hide_index=True
