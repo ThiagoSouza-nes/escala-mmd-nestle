@@ -13,7 +13,6 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# --- LISTA DE BACKUPS ATUALIZADA (Livia -> Bianca S. / Faiha removida) ---
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
@@ -26,6 +25,17 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
+# --- NOVA FUNÇÃO DE VOZ ---
+def ativar_leitura_voz(texto):
+    if st.session_state.get("voz", False):
+        components.html(f"""
+            <script>
+                var msg = new SpeechSynthesisUtterance('{texto}');
+                msg.lang = 'pt-BR';
+                window.speechSynthesis.speak(msg);
+            </script>
+        """, height=0)
+
 def check_login():
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
@@ -34,8 +44,8 @@ def check_login():
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
             with st.form("login_system", clear_on_submit=False):
-                user = st.text_input("Usuário", key="username_field", autocomplete="username").strip()
-                password = st.text_input("Senha", type="password", key="password_field", autocomplete="current-password").strip()
+                user = st.text_input("Usuário", key="username_field").strip()
+                password = st.text_input("Senha", type="password", key="password_field").strip()
                 submit_button = st.form_submit_button("Acessar Painel", use_container_width=True)
                 if submit_button:
                     if user == USER_ACCESS and password == PASS_ACCESS:
@@ -55,8 +65,7 @@ def criar_link_outlook(data_str, reuniao, apresentador):
         assunto = urllib.parse.quote(f"🔔 Apresentação MMD: {reuniao}")
         corpo = urllib.parse.quote(f"Apresentador: {apresentador}")
         return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&body={corpo}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_end}"
-    except:
-        return "#"
+    except: return "#"
 
 @st.cache_data(ttl=60)
 def carregar_nomes():
@@ -72,70 +81,40 @@ def gerar_escala_final(nomes):
     data_inicio = datetime(ano_atual, 1, 1)
     data_fim = datetime(ano_atual, 12, 31)
     dias = pd.date_range(data_inicio, data_fim, freq='B')
-    
     fila_flash = nomes.copy()
     fila_dor = [n for n in nomes if n not in ["Dani", "Rafael"]]
-    
-    idx_f = 0
-    idx_d = 0
-    escala = []
-
+    idx_f, idx_d, escala = 0, 0, []
     for dia in dias:
         data_s = dia.strftime("%d/%m/%Y")
         sem = dia.isocalendar()[1]
         dia_semana = dia.weekday()
         dia_nome = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"][dia_semana]
         apresentadores_na_semana = [item['Apresentador'] for item in escala if item['Semana'] == sem]
-
-        # --- MANHÃ ---
-        while fila_flash[idx_f % len(fila_flash)] in apresentadores_na_semana:
-            idx_f += 1
+        while fila_flash[idx_f % len(fila_flash)] in apresentadores_na_semana: idx_f += 1
         ap_m = fila_flash[idx_f % len(fila_flash)]
-        escala.append({
-            "Semana": sem, "Data": data_s, "Dia": dia_nome,
-            "Reunião": "Flash Manhã", "Apresentador": ap_m,
-            "Backup": MAPA_BACKUPS.get(ap_m, "N/A"),
-            "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)
-        })
+        escala.append({"Semana": sem, "Data": data_s, "Dia": dia_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": MAPA_BACKUPS.get(ap_m, "N/A"), "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
         apresentadores_na_semana.append(ap_m)
         idx_f += 1
-
-        # --- TARDE / DOR ---
         if dia_semana in [1, 3]: 
-            while fila_dor[idx_d % len(fila_dor)] in apresentadores_na_semana:
-                idx_d += 1
+            while fila_dor[idx_d % len(fila_dor)] in apresentadores_na_semana: idx_d += 1
             ap_d = fila_dor[idx_d % len(fila_dor)]
-            escala.append({
-                "Semana": sem, "Data": data_s, "Dia": dia_nome,
-                "Reunião": "DOR", "Apresentador": ap_d,
-                "Backup": MAPA_BACKUPS.get(ap_d, "N/A"),
-                "Link": criar_link_outlook(data_s, "DOR", ap_d)
-            })
+            escala.append({"Semana": sem, "Data": data_s, "Dia": dia_nome, "Reunião": "DOR", "Apresentador": ap_d, "Backup": MAPA_BACKUPS.get(ap_d, "N/A"), "Link": criar_link_outlook(data_s, "DOR", ap_d)})
             idx_d += 1
         elif dia_semana in [0, 2, 4]: 
-            while fila_flash[idx_f % len(fila_flash)] in apresentadores_na_semana:
-                idx_f += 1
+            while fila_flash[idx_f % len(fila_flash)] in apresentadores_na_semana: idx_f += 1
             ap_t = fila_flash[idx_f % len(fila_flash)]
-            escala.append({
-                "Semana": sem, "Data": data_s, "Dia": dia_nome,
-                "Reunião": "Flash Tarde", "Apresentador": ap_t,
-                "Backup": MAPA_BACKUPS.get(ap_t, "N/A"),
-                "Link": criar_link_outlook(data_s, "Flash Tarde", ap_t)
-            })
+            escala.append({"Semana": sem, "Data": data_s, "Dia": dia_nome, "Reunião": "Flash Tarde", "Apresentador": ap_t, "Backup": MAPA_BACKUPS.get(ap_t, "N/A"), "Link": criar_link_outlook(data_s, "Flash Tarde", ap_t)})
             idx_f += 1
-            
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 190px; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-        <div>
-            <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
-            <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br>
-            <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span>
-        </div>
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 190px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
+        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br>
+        <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <div style="margin-top: 10px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold; width: 100%;">📅 AGENDAR OUTLOOK</a>
+            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -144,38 +123,44 @@ if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
         df_total = gerar_escala_final(nomes_lista)
-        st.sidebar.title("Configurações")
+        
+        # Sidebar
         if "voz" not in st.session_state: st.session_state.voz = False
-        btn_voz = "🔴 Desativar Leitura de Tela" if st.session_state.voz else "🔊 Ativar Leitura de Tela"
+        btn_voz = "🔴 Desativar Voz" if st.session_state.voz else "🔊 Ativar Voz"
         if st.sidebar.button(btn_voz):
             st.session_state.voz = not st.session_state.voz
+            if st.session_state.voz:
+                ativar_leitura_voz("Leitura de tela ativada")
             st.rerun()
-        if st.sidebar.button("🚪 Sair do Painel"):
+        
+        if st.sidebar.button("🚪 Sair"):
             st.session_state.logged_in = False
             st.rerun()
-            
+
         st.title("🚀 MMD | Dashboard de Apresentações")
+        
+        # Filtro
         opcoes_nomes = ["Todos"] + nomes_lista
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", opcoes_nomes)
         
         if filtro_nome != "Todos":
-            st.markdown(f"### 📅 Lista de Apresentações: {filtro_nome}")
-            df_pessoal = df_total[df_total["Apresentador"] == filtro_nome].copy()
-            st.data_editor(df_pessoal[["Data", "Dia", "Reunião", "Backup", "Link"]],
-                column_config={"Link": st.column_config.LinkColumn("Agenda Outlook", display_text="📅 AGENDAR")},
-                hide_index=True, use_container_width=True, disabled=True)
-            
-            # --- NOVO CONTADOR POR NOME ---
+            df_pessoal = df_total[df_total["Apresentador"] == filtro_nome]
             total_ap = len(df_pessoal)
-            st.info(f"📊 **{filtro_nome}** possui um total de **{total_ap}** apresentações agendadas para o ano de 2026.")
-            st.markdown("---")
+            frase_voz = f"{filtro_nome} tem {total_ap} apresentações este ano."
+            ativar_leitura_voz(frase_voz)
+            st.info(f"📊 **{frase_voz}**")
+            st.dataframe(df_pessoal[["Data", "Dia", "Reunião", "Backup"]], hide_index=True, use_container_width=True)
 
         st.subheader("🗓️ Visualização por Semana")
         sem_atual = datetime.now().isocalendar()[1]
-        lista_s = sorted(df_total["Semana"].unique())
-        sem_busca = st.select_slider("Selecione a Semana:", options=lista_s, value=sem_atual if sem_atual in lista_s else lista_s[0])
+        sem_busca = st.select_slider("Selecione a Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
+        
+        # Avisar a semana por voz
+        if filtro_nome == "Todos":
+            ativar_leitura_voz(f"Mostrando apresentadores da semana {sem_busca}")
+
         for d_label, group in df_semana.groupby("Data", sort=False):
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
