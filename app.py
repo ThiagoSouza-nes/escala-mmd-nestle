@@ -25,9 +25,9 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (LEITURA AO PASSAR O MOUSE) ---
+# --- FUNÇÃO DE ACESSIBILIDADE COM BOTÃO ATIVAR/DESATIVAR ---
 def injetar_leitor_acessibilidade():
-    """Injeta um script que lê o texto sob o cursor do mouse (Hover)."""
+    """Injeta o script de leitura apenas se o usuário ativar."""
     components.html("""
         <script>
             const synth = window.speechSynthesis;
@@ -35,7 +35,7 @@ def injetar_leitor_acessibilidade():
 
             function falar(texto) {
                 if (texto === ultimaLeitura || synth.speaking) return;
-                synth.cancel(); // Para a fala anterior para ler a nova imediatamente
+                synth.cancel(); 
                 
                 const ut = new SpeechSynthesisUtterance(texto);
                 ut.lang = 'pt-BR';
@@ -43,30 +43,23 @@ def injetar_leitor_acessibilidade():
                 ultimaLeitura = texto;
                 synth.speak(ut);
                 
-                // Limpa o cache da última leitura após breve delay
                 setTimeout(() => { ultimaLeitura = ""; }, 1500);
             }
 
-            // Acessa o documento principal do Streamlit
             const docAlvo = window.parent.document;
 
-            // Detecta quando o mouse passa sobre um elemento
             docAlvo.addEventListener('mouseover', (e) => {
                 const el = e.target;
-                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL'];
+                // Seletor expandido para garantir que pegue divisões e containers de texto
+                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL', 'DIV'];
                 
                 if (tagsInteresse.includes(el.tagName)) {
-                    const texto = el.innerText.trim();
-                    if (texto.length > 1 && !texto.includes("http")) {
+                    // Pega o texto do elemento ou do container pai se o elemento estiver vazio
+                    const texto = (el.innerText || el.textContent).trim();
+                    if (texto.length > 1 && texto.length < 500 && !texto.includes("http")) {
                         falar(texto);
                     }
                 }
-            });
-            
-            // Suporte para navegação via teclado (TAB)
-            docAlvo.addEventListener('focusin', (e) => {
-                const texto = e.target.innerText || e.target.value;
-                if (texto) falar(texto);
             });
         </script>
     """, height=0, width=0)
@@ -147,9 +140,18 @@ def renderizar_card(row):
 if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
-        # Injeta o leitor de mouse hover automaticamente
-        injetar_leitor_acessibilidade()
         
+        # --- SIDEBAR COM BOTÃO DE ACESSIBILIDADE ---
+        st.sidebar.title("⚙️ Configurações")
+        acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
+        
+        if acessibilidade:
+            injetar_leitor_acessibilidade()
+            st.sidebar.info("A leitura ao passar o mouse está ATIVA.")
+        else:
+            # Garante que a fala pare se o usuário desativar o botão
+            components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
+
         df_total = gerar_escala_final(nomes_lista)
         
         st.title("🚀 MMD | Dashboard de Apresentações")
