@@ -25,7 +25,7 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (CORRIGIDA: APENAS NO MOUSEOVER) ---
+# --- FUNÇÃO DE ACESSIBILIDADE (LEITURA TOTAL AO PASSAR O MOUSE) ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -33,12 +33,9 @@ def injetar_leitor_acessibilidade():
             let ultimoTexto = "";
 
             function falar(texto) {
-                // Se o texto for igual ao último ou estiver vazio, ignora
                 if (!texto || texto === ultimoTexto) return;
                 
-                // Cancela qualquer fala em andamento IMEDIATAMENTE antes de falar o novo
                 synth.cancel(); 
-                
                 const ut = new SpeechSynthesisUtterance(texto);
                 ut.lang = 'pt-BR';
                 ut.rate = 1.1;
@@ -46,26 +43,21 @@ def injetar_leitor_acessibilidade():
                 ultimoTexto = texto;
                 synth.speak(ut);
                 
-                // Reset do cache após 1 segundo para permitir ler novamente se o usuário sair e voltar
-                setTimeout(() => { ultimoTexto = ""; }, 1000);
+                setTimeout(() => { ultimoTexto = ""; }, 800);
             }
 
             const docAlvo = window.parent.document;
 
-            // Evento de entrada do mouse: SÓ FALA QUANDO O MOUSE ENTRA NO ELEMENTO
             docAlvo.addEventListener('mouseover', (e) => {
                 const el = e.target;
-                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL'];
+                // Agora captura o texto de QUALQUER elemento que o mouse tocar
+                const textoParaLer = (el.innerText || el.textContent).trim();
                 
-                if (tagsInteresse.includes(el.tagName)) {
-                    const textoParaLer = el.innerText.trim();
-                    if (textoParaLer.length > 1 && !textoParaLer.includes("http")) {
-                        falar(textoParaLer);
-                    }
+                if (textoParaLer.length > 0 && !textoParaLer.includes("http")) {
+                    falar(textoParaLer);
                 }
             }, true);
 
-            // Se o mouse sair do elemento, para de falar imediatamente (opcional para precisão)
             docAlvo.addEventListener('mouseout', () => {
                 synth.cancel();
             }, true);
@@ -114,13 +106,15 @@ def gerar_escala_final(nomes):
     idx_f, idx_d = 0, 0
     for dia in dias:
         data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
-        d_nome = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"][d_sem]
+        
+        # AJUSTE: Nomes dos dias com "-Feira"
+        d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
+        
         aps_sem = [item['Apresentador'] for item in escala if item['Semana'] == sem]
         
         while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
         ap_m = fila_f[idx_f % len(fila_f)]
         
-        # Cadeia de Backups
         bkp1 = MAPA_BACKUPS.get(ap_m, "N/A")
         bkp2 = MAPA_BACKUPS.get(bkp1, "N/A")
         bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
@@ -164,13 +158,11 @@ if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
         st.sidebar.title("⚙️ Configurações")
-        # O leitor só funciona se o usuário ativar este botão
         acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
         
         if acessibilidade:
             injetar_leitor_acessibilidade()
         else:
-            # Desliga a voz se o usuário desmarcar o botão
             components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
         df_total = gerar_escala_final(nomes_lista)
@@ -179,12 +171,12 @@ if check_login():
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         st.subheader("🗓️ Visualização por Semana")
-        # Ajuste para a semana atual
         sem_atual = datetime.now().isocalendar()[1]
         sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
         for d_label, group in df_semana.groupby("Data", sort=False):
+            # O cabeçalho agora mostrará "Segunda-Feira - 23/03/2026"
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
