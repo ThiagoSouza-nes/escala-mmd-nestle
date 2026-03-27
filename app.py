@@ -13,51 +13,43 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
+# Dicionário atualizado com Anna Laura e Faiha conforme imagem
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
     "Bruna": "Anna Laura", "Bruno": "Bianca M.", "Enrique": "Jazmin", 
     "Dani": "Sonia", "Debora": "Bruna", "Diana": "Julia", 
-    "Florencia": "Diana", "Gisele": "Thiago", 
+    "Faiha": "Bianca S.", "Florencia": "Diana", "Gisele": "Thiago", 
     "Honorato": "Bruno", "Jazmin": "Abigail", "Jesus": "Luca", 
-    "Julia": "Honorato", "Livia": "Bianca S.", "Luca": "Enrique", 
+    "Julia": "Honorato", "Livia": "Faiha", "Luca": "Enrique", 
     "Mijal": "Livia", "Rafael": "Florencia", "Renan": "Debora", 
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (LEITURA TOTAL AO PASSAR O MOUSE) ---
+# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA INTEGRALMENTE) ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
             const synth = window.speechSynthesis;
             let ultimoTexto = "";
-
             function falar(texto) {
                 if (!texto || texto === ultimoTexto) return;
-                
                 synth.cancel(); 
                 const ut = new SpeechSynthesisUtterance(texto);
                 ut.lang = 'pt-BR';
                 ut.rate = 1.1;
-                
                 ultimoTexto = texto;
                 synth.speak(ut);
-                
                 setTimeout(() => { ultimoTexto = ""; }, 800);
             }
-
             const docAlvo = window.parent.document;
-
             docAlvo.addEventListener('mouseover', (e) => {
                 const el = e.target;
-                // Agora captura o texto de QUALQUER elemento que o mouse tocar
                 const textoParaLer = (el.innerText || el.textContent).trim();
-                
                 if (textoParaLer.length > 0 && !textoParaLer.includes("http")) {
                     falar(textoParaLer);
                 }
             }, true);
-
             docAlvo.addEventListener('mouseout', () => {
                 synth.cancel();
             }, true);
@@ -93,7 +85,7 @@ def criar_link_outlook(data_str, reuniao, apresentador):
         return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_end}"
     except: return "#"
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=5) # Cache reduzido para atualizar mais rápido conforme sua edição na planilha
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
@@ -102,40 +94,31 @@ def carregar_nomes():
 
 def gerar_escala_final(nomes):
     dias = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
-    fila_f, fila_d, escala = nomes.copy(), [n for n in nomes if n not in ["Dani", "Rafael"]], []
+    fila_f, escala = nomes.copy(), []
+    fila_d = [n for n in nomes if n not in ["Dani", "Rafael"]]
     idx_f, idx_d = 0, 0
     for dia in dias:
         data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
-        
-        # AJUSTE: Nomes dos dias com "-Feira"
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
-        
         aps_sem = [item['Apresentador'] for item in escala if item['Semana'] == sem]
         
+        # Flash Manhã
         while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
         ap_m = fila_f[idx_f % len(fila_f)]
-        
-        bkp1 = MAPA_BACKUPS.get(ap_m, "N/A")
-        bkp2 = MAPA_BACKUPS.get(bkp1, "N/A")
-        bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
-        
+        bkp1 = MAPA_BACKUPS.get(ap_m, "N/A"); bkp2 = MAPA_BACKUPS.get(bkp1, "N/A"); bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": bkp1, "Backup2": bkp2, "Backup3": bkp3, "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
         aps_sem.append(ap_m); idx_f += 1
         
-        if d_sem in [1, 3]: 
+        if d_sem in [1, 3]: # DOR
             while fila_d[idx_d % len(fila_d)] in aps_sem: idx_d += 1
             ap_d = fila_d[idx_d % len(fila_d)]
-            bkp1_d = MAPA_BACKUPS.get(ap_d, "N/A")
-            bkp2_d = MAPA_BACKUPS.get(bkp1_d, "N/A")
-            bkp3_d = MAPA_BACKUPS.get(bkp2_d, "N/A")
+            bkp1_d = MAPA_BACKUPS.get(ap_d, "N/A"); bkp2_d = MAPA_BACKUPS.get(bkp1_d, "N/A"); bkp3_d = MAPA_BACKUPS.get(bkp2_d, "N/A")
             escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "DOR", "Apresentador": ap_d, "Backup": bkp1_d, "Backup2": bkp2_d, "Backup3": bkp3_d, "Link": criar_link_outlook(data_s, "DOR", ap_d)})
             idx_d += 1
-        else:
+        else: # Flash Tarde
             while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
             ap_t = fila_f[idx_f % len(fila_f)]
-            bkp1_t = MAPA_BACKUPS.get(ap_t, "N/A")
-            bkp2_t = MAPA_BACKUPS.get(bkp1_t, "N/A")
-            bkp3_t = MAPA_BACKUPS.get(bkp2_t, "N/A")
+            bkp1_t = MAPA_BACKUPS.get(ap_t, "N/A"); bkp2_t = MAPA_BACKUPS.get(bkp1_t, "N/A"); bkp3_t = MAPA_BACKUPS.get(bkp2_t, "N/A")
             escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Tarde", "Apresentador": ap_t, "Backup": bkp1_t, "Backup2": bkp2_t, "Backup3": bkp3_t, "Link": criar_link_outlook(data_s, "Flash Tarde", ap_t)})
             idx_f += 1
     return pd.DataFrame(escala)
@@ -143,7 +126,8 @@ def gerar_escala_final(nomes):
 def renderizar_card(row):
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 210px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
+        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
+        <small style="color: #666;">{row['Dia']} - {row['Data']}</small><br><br>
         <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <span title="Próximo Backup: {row['Backup3']}" style="font-size: 13px; color: #777; cursor: help; display: block; margin-top: 3px;">🛡️ Backup 2: {row['Backup2']}</span><br>
@@ -159,24 +143,32 @@ if check_login():
     if nomes_lista:
         st.sidebar.title("⚙️ Configurações")
         acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
-        
-        if acessibilidade:
-            injetar_leitor_acessibilidade()
-        else:
-            components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
+        if acessibilidade: injetar_leitor_acessibilidade()
+        else: components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
+        # --- BUSCAR APRESENTADOR (CORRIGIDO) ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
+        if filtro_nome != "Todos":
+            df_p = df_total[df_total["Apresentador"] == filtro_nome]
+            st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
+            
+            # Exibe as reuniões do apresentador em formato de cards
+            cols_busca = st.columns(3)
+            for i, (_, row) in enumerate(df_p.iterrows()):
+                with cols_busca[i % 3]:
+                    renderizar_card(row)
+            st.divider()
+
         st.subheader("🗓️ Visualização por Semana")
         sem_atual = datetime.now().isocalendar()[1]
         sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
         for d_label, group in df_semana.groupby("Data", sort=False):
-            # O cabeçalho agora mostrará "Segunda-Feira - 23/03/2026"
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
