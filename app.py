@@ -25,33 +25,50 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA ORIGINAL) ---
+# --- FUNÇÃO DE ACESSIBILIDADE (CORRIGIDA: APENAS NO MOUSEOVER) ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
             const synth = window.speechSynthesis;
-            let ultimaLeitura = "";
+            let ultimoTexto = "";
+
             function falar(texto) {
-                if (texto === ultimaLeitura || synth.speaking) return;
+                // Se o texto for igual ao último ou estiver vazio, ignora
+                if (!texto || texto === ultimoTexto) return;
+                
+                // Cancela qualquer fala em andamento IMEDIATAMENTE antes de falar o novo
                 synth.cancel(); 
+                
                 const ut = new SpeechSynthesisUtterance(texto);
                 ut.lang = 'pt-BR';
                 ut.rate = 1.1;
-                ultimaLeitura = texto;
+                
+                ultimoTexto = texto;
                 synth.speak(ut);
-                setTimeout(() => { ultimaLeitura = ""; }, 1500);
+                
+                // Reset do cache após 1 segundo para permitir ler novamente se o usuário sair e voltar
+                setTimeout(() => { ultimoTexto = ""; }, 1000);
             }
+
             const docAlvo = window.parent.document;
+
+            // Evento de entrada do mouse: SÓ FALA QUANDO O MOUSE ENTRA NO ELEMENTO
             docAlvo.addEventListener('mouseover', (e) => {
                 const el = e.target;
-                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL', 'DIV'];
+                const tagsInteresse = ['B', 'SPAN', 'P', 'H1', 'H2', 'H3', 'A', 'BUTTON', 'LABEL'];
+                
                 if (tagsInteresse.includes(el.tagName)) {
-                    const texto = (el.innerText || el.textContent).trim();
-                    if (texto.length > 1 && !texto.includes("http")) {
-                        falar(texto);
+                    const textoParaLer = el.innerText.trim();
+                    if (textoParaLer.length > 1 && !textoParaLer.includes("http")) {
+                        falar(textoParaLer);
                     }
                 }
-            });
+            }, true);
+
+            // Se o mouse sair do elemento, para de falar imediatamente (opcional para precisão)
+            docAlvo.addEventListener('mouseout', () => {
+                synth.cancel();
+            }, true);
         </script>
     """, height=0, width=0)
 
@@ -103,10 +120,10 @@ def gerar_escala_final(nomes):
         while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
         ap_m = fila_f[idx_f % len(fila_f)]
         
-        # CADEIA DE BACKUPS (4 NÍVEIS)
+        # Cadeia de Backups
         bkp1 = MAPA_BACKUPS.get(ap_m, "N/A")
         bkp2 = MAPA_BACKUPS.get(bkp1, "N/A")
-        bkp3 = MAPA_BACKUPS.get(bkp2, "N/A") # Este é o Renan no seu exemplo
+        bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
         
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": bkp1, "Backup2": bkp2, "Backup3": bkp3, "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
         aps_sem.append(ap_m); idx_f += 1
@@ -130,7 +147,6 @@ def gerar_escala_final(nomes):
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
-    # O Backup 3 (Renan) só aparece no tooltip do Backup 2 (Thiago)
     st.markdown(f"""
     <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 210px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
@@ -148,9 +164,14 @@ if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
         st.sidebar.title("⚙️ Configurações")
+        # O leitor só funciona se o usuário ativar este botão
         acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
+        
         if acessibilidade:
             injetar_leitor_acessibilidade()
+        else:
+            # Desliga a voz se o usuário desmarcar o botão
+            components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
@@ -158,6 +179,7 @@ if check_login():
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         st.subheader("🗓️ Visualização por Semana")
+        # Ajuste para a semana atual
         sem_atual = datetime.now().isocalendar()[1]
         sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         
