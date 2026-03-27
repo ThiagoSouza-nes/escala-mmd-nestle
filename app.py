@@ -25,14 +25,26 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- NOVA FUNÇÃO DE VOZ ---
-def ativar_leitura_voz(texto):
+# --- FUNÇÃO DE LEITURA COMPLETA ---
+def ler_pagina_completa():
     if st.session_state.get("voz", False):
-        components.html(f"""
+        components.html("""
             <script>
-                var msg = new SpeechSynthesisUtterance('{texto}');
-                msg.lang = 'pt-BR';
-                window.speechSynthesis.speak(msg);
+                function lerTudo() {
+                    window.speechSynthesis.cancel();
+                    // Seleciona textos de títulos, cards e informações do Streamlit
+                    let textos = document.querySelectorAll('h1, h2, h3, b, span, .stMarkdown');
+                    let conteudo = "";
+                    textos.forEach(t => {
+                        if(t.innerText.length > 2) conteudo += t.innerText + ". ";
+                    });
+                    var msg = new SpeechSynthesisUtterance(conteudo);
+                    msg.lang = 'pt-BR';
+                    msg.rate = 1.1;
+                    window.speechSynthesis.speak(msg);
+                }
+                // Executa após um pequeno delay para carregar os elementos
+                setTimeout(lerTudo, 1000);
             </script>
         """, height=0)
 
@@ -43,11 +55,10 @@ def check_login():
         st.markdown("<h2 style='text-align: center;'>Portal de Escalas MMD</h2>", unsafe_allow_html=True)
         col1, col2, col3 = st.columns([1,1,1])
         with col2:
-            with st.form("login_system", clear_on_submit=False):
-                user = st.text_input("Usuário", key="username_field").strip()
-                password = st.text_input("Senha", type="password", key="password_field").strip()
-                submit_button = st.form_submit_button("Acessar Painel", use_container_width=True)
-                if submit_button:
+            with st.form("login_system"):
+                user = st.text_input("Usuário").strip()
+                password = st.text_input("Senha", type="password").strip()
+                if st.form_submit_button("Acessar Painel", use_container_width=True):
                     if user == USER_ACCESS and password == PASS_ACCESS:
                         st.session_state.logged_in = True
                         st.rerun()
@@ -72,12 +83,10 @@ def carregar_nomes():
     try:
         df_sheets = pd.read_csv(SHEET_URL)
         return sorted(df_sheets['Funcionario'].dropna().unique().tolist())
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        return []
+    except: return []
 
 def gerar_escala_final(nomes):
-    ano_atual = datetime.now().year
+    ano_atual = 2026
     data_inicio = datetime(ano_atual, 1, 1)
     data_fim = datetime(ano_atual, 12, 31)
     dias = pd.date_range(data_inicio, data_fim, freq='B')
@@ -109,13 +118,10 @@ def gerar_escala_final(nomes):
 
 def renderizar_card(row):
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 190px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
-        <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br>
-        <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
-        <div style="margin-top: 10px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
-        </div>
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; margin-bottom: 10px;">
+        <b style="font-size: 14px;">{row['Reunião']}</b><br>
+        <span style="font-size: 18px; font-weight: bold;">🏆 {row['Apresentador']}</span><br>
+        <span style="font-size: 13px;">🔄 Backup: {row['Backup']}</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -126,11 +132,9 @@ if check_login():
         
         # Sidebar
         if "voz" not in st.session_state: st.session_state.voz = False
-        btn_voz = "🔴 Desativar Voz" if st.session_state.voz else "🔊 Ativar Voz"
+        btn_voz = "🔴 Desativar Leitura" if st.session_state.voz else "🔊 Ativar Leitura Completa"
         if st.sidebar.button(btn_voz):
             st.session_state.voz = not st.session_state.voz
-            if st.session_state.voz:
-                ativar_leitura_voz("Leitura de tela ativada")
             st.rerun()
         
         if st.sidebar.button("🚪 Sair"):
@@ -139,16 +143,15 @@ if check_login():
 
         st.title("🚀 MMD | Dashboard de Apresentações")
         
+        # Executa a leitura se a voz estiver ligada
+        ler_pagina_completa()
+
         # Filtro
-        opcoes_nomes = ["Todos"] + nomes_lista
-        filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", opcoes_nomes)
+        filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
             df_pessoal = df_total[df_total["Apresentador"] == filtro_nome]
-            total_ap = len(df_pessoal)
-            frase_voz = f"{filtro_nome} tem {total_ap} apresentações este ano."
-            ativar_leitura_voz(frase_voz)
-            st.info(f"📊 **{frase_voz}**")
+            st.info(f"📊 {filtro_nome} possui {len(df_pessoal)} apresentações em 2026.")
             st.dataframe(df_pessoal[["Data", "Dia", "Reunião", "Backup"]], hide_index=True, use_container_width=True)
 
         st.subheader("🗓️ Visualização por Semana")
@@ -157,10 +160,6 @@ if check_login():
         
         df_semana = df_total[df_total["Semana"] == sem_busca]
         
-        # Avisar a semana por voz
-        if filtro_nome == "Todos":
-            ativar_leitura_voz(f"Mostrando apresentadores da semana {sem_busca}")
-
         for d_label, group in df_semana.groupby("Data", sort=False):
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
