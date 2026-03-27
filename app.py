@@ -14,7 +14,7 @@ USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
 MAPA_BACKUPS = {
-    "Abigail": "Dani", "Amanda": "Mijal", "Anna": "Soledad", 
+    "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
     "Bruna": "Anna Laura", "Bruno": "Bianca M.", "Enrique": "Jazmin", 
     "Dani": "Sonia", "Debora": "Bruna", "Diana": "Julia", 
