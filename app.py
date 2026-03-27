@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pd as pd
 from datetime import datetime
 import urllib.parse
 import streamlit.components.v1 as components
@@ -25,7 +25,7 @@ MAPA_BACKUPS = {
     "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA INTEGRALMENTE) ---
+# --- FUNÇÃO DE ACESSIBILIDADE (MANTIDA) ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -121,19 +121,16 @@ def gerar_escala_final(nomes):
             idx_f += 1
     return pd.DataFrame(escala)
 
-def renderizar_card(row, mostrar_header=False):
-    # Header opcional para quando for busca individual
-    header_html = f"<small style='color: #666;'>{row['Dia']} - {row['Data']}<br><b>Semana: {row['Semana']}</b></small><br><br>" if mostrar_header else ""
-    
+def renderizar_card(row):
+    # Correção do bug visual: Removido st.code e garantido unsafe_allow_html
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 220px; margin-bottom: 15px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br>
-        {header_html}
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 180px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+        <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
         <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <span title="Próximo Backup: {row['Backup3']}" style="font-size: 13px; color: #777; cursor: help; display: block; margin-top: 3px;">🛡️ Backup 2: {row['Backup2']}</span><br>
         <div style="margin-top: 15px;">
-            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 10px; border-radius: 5px; font-size: 12px; text-align: center; font-weight: bold;">🗓️ AGENDAR</a>
+            <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -145,23 +142,17 @@ if check_login():
         st.sidebar.title("⚙️ Configurações")
         acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
         if acessibilidade: injetar_leitor_acessibilidade()
-        else: components.html("<script>window.speechSynthesis.cancel();</script>", height=0)
 
         df_total = gerar_escala_final(nomes_lista)
         st.title("🚀 MMD | Dashboard de Apresentações")
         
-        # --- BUSCAR APRESENTADOR ---
+        # --- BUSCAR APRESENTADOR (FORMATO EXCEL/TABELA) ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
-            df_p = df_total[df_total["Apresentador"] == filtro_nome]
+            df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana"]]
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em 2026.")
-            
-            # Cards na busca individual com Semana marcada
-            cols_busca = st.columns(3)
-            for i, (_, row) in enumerate(df_p.iterrows()):
-                with cols_busca[i % 3]:
-                    renderizar_card(row, mostrar_header=True)
+            st.dataframe(df_p, use_container_width=True, hide_index=True)
             st.divider()
 
         st.subheader("🗓️ Visualização por Semana")
@@ -173,5 +164,4 @@ if check_login():
             st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
             cols = st.columns(len(group))
             for i, (_, row) in enumerate(group.iterrows()):
-                with cols[i]: 
-                    renderizar_card(row, mostrar_header=False)
+                with cols[i]: renderizar_card(row)
