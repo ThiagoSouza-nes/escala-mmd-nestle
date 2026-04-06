@@ -13,15 +13,15 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Mapa de Backups (Atualizado: Sonia e Enrique removidos)
+# Mapa de Backups (Atualizado: Sonia, Enrique e Faiha removidos)
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
     "Bruna": "Anna Laura", "Bruno": "Bianca M.", 
     "Dani": "Jesus", "Debora": "Bruna", "Diana": "Julia", 
-    "Faiha": "Bianca S.", "Florencia": "Diana", "Gisele": "Thiago", 
+    "Florencia": "Diana", "Gisele": "Thiago", 
     "Honorato": "Bruno", "Jazmin": "Abigail", "Jesus": "Luca", 
-    "Julia": "Honorato", "Livia": "Faiha", "Luca": "Jazmin", 
+    "Julia": "Honorato", "Livia": "Bianca S.", "Luca": "Jazmin", 
     "Mijal": "Livia", "Rafael": "Florencia", "Renan": "Debora", 
     "Soledad": "Gisele", "Thiago": "Renan"
 }
@@ -89,7 +89,10 @@ def criar_link_outlook(data_str, reuniao, apresentador):
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
-        return sorted(df['Funcionario'].dropna().unique().tolist())
+        # Filtra para remover Faiha, Sonia e Enrique da lista principal caso ainda existam na planilha
+        nomes = df['Funcionario'].dropna().unique().tolist()
+        nomes_filtrados = [n for n in nomes if n not in ["Faiha", "Sonia", "Enrique"]]
+        return sorted(nomes_filtrados)
     except: return []
 
 # --- LÓGICA DE ESCALA COM ANO AUTOMÁTICO ---
@@ -150,7 +153,6 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title(f"🚀 MMD | Dashboard de Apresentações {datetime.now().year}")
         
-        # --- BUSCAR APRESENTADOR ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
