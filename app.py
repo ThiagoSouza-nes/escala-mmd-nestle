@@ -13,17 +13,17 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Mapa de Backups (Permanecem conforme sua definição)
+# Mapa de Backups (Atualizado: Sonia e Enrique removidos)
 MAPA_BACKUPS = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
-    "Bruna": "Anna Laura", "Bruno": "Bianca M.", "Enrique": "Jazmin", 
-    "Dani": "Sonia", "Debora": "Bruna", "Diana": "Julia", 
+    "Bruna": "Anna Laura", "Bruno": "Bianca M.", 
+    "Dani": "Jesus", "Debora": "Bruna", "Diana": "Julia", 
     "Faiha": "Bianca S.", "Florencia": "Diana", "Gisele": "Thiago", 
     "Honorato": "Bruno", "Jazmin": "Abigail", "Jesus": "Luca", 
-    "Julia": "Honorato", "Livia": "Faiha", "Luca": "Enrique", 
+    "Julia": "Honorato", "Livia": "Faiha", "Luca": "Jazmin", 
     "Mijal": "Livia", "Rafael": "Florencia", "Renan": "Debora", 
-    "Sonia": "Jesus", "Soledad": "Gisele", "Thiago": "Renan"
+    "Soledad": "Gisele", "Thiago": "Renan"
 }
 
 # --- FUNÇÃO DE ACESSIBILIDADE ---
@@ -94,7 +94,7 @@ def carregar_nomes():
 
 # --- LÓGICA DE ESCALA COM ANO AUTOMÁTICO ---
 def gerar_escala_final(nomes):
-    ano_atual = datetime.now().year # Mudança para automação anual
+    ano_atual = datetime.now().year 
     dias = pd.date_range(datetime(ano_atual, 1, 1), datetime(ano_atual, 12, 31), freq='B')
     
     fila_f, escala = nomes.copy(), []
