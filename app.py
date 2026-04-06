@@ -89,7 +89,7 @@ def criar_link_outlook(data_str, reuniao, apresentador):
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
-        # Filtra para remover Faiha, Sonia e Enrique da lista principal caso ainda existam na planilha
+        # Filtro de segurança para garantir que os removidos não apareçam na lista de nomes
         nomes = df['Funcionario'].dropna().unique().tolist()
         nomes_filtrados = [n for n in nomes if n not in ["Faiha", "Sonia", "Enrique"]]
         return sorted(nomes_filtrados)
@@ -153,10 +153,17 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title(f"🚀 MMD | Dashboard de Apresentações {datetime.now().year}")
         
+        # --- BUSCAR APRESENTADOR ---
         filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         
         if filtro_nome != "Todos":
-            df_p = df_total[df_total["Apresentador"] == filtro_nome][["Data", "Dia", "Reunião", "Semana", "Link"]]
+            # Filtramos as apresentações e adicionamos a coluna de Backup
+            df_p = df_total[df_total["Apresentador"] == filtro_nome].copy()
+            df_p["Backup_Atual"] = MAPA_BACKUPS.get(filtro_nome, "N/A")
+            
+            # Reorganização das colunas para inserir Backup entre Reunião e Semana
+            df_p = df_p[["Data", "Dia", "Reunião", "Backup_Atual", "Semana", "Link"]]
+            
             st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em {datetime.now().year}.")
             
             st.dataframe(
@@ -165,6 +172,7 @@ if check_login():
                     "Data": st.column_config.TextColumn("Data", width="small"),
                     "Dia": st.column_config.TextColumn("Dia", width="small"),
                     "Reunião": st.column_config.TextColumn("Reunião", width="medium"),
+                    "Backup_Atual": st.column_config.TextColumn("🔄 Backup", width="medium"),
                     "Semana": st.column_config.NumberColumn("Sem.", width="small"),
                     "Link": st.column_config.LinkColumn("📅 Agendar", display_text="Agendar no Outlook", width="small")
                 },
