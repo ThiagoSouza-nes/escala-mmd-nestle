@@ -119,7 +119,6 @@ def exportar_excel_mmd(df_total, apenas_um_mes=None):
             df_mes = df_base[df_base['dt_obj'].dt.month == MESES_NOMES[mes_nome]]
             if df_mes.empty: continue
             
-            # Divisor de Mês (Mesclado)
             worksheet.merge_range(current_row, 0, current_row, 6, mes_nome.upper(), fmt_mes)
             current_row += 1
             
@@ -226,13 +225,18 @@ if check_login():
                 st.download_button("📥 Baixar Ano Completo", exportar_excel_mmd(df_total), f"Escala_Anual_{datetime.now().year}.xlsx", use_container_width=True)
 
         st.divider()
-        # --- BUSCA POR APRESENTADOR ---
+        # --- BUSCA POR APRESENTADOR (TABELA LIMPA COM LINK OUTLOOK) ---
         busca_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         if busca_nome != "Todos":
             df_filtro = df_total[df_total["Apresentador"] == busca_nome].copy()
             df_dor_count = df_filtro[df_filtro["Reunião"] == "DOR"]
             st.info(f"📊 {busca_nome} tem {len(df_filtro)} apresentações no total, sendo **{len(df_dor_count)} reuniões DOR**.")
-            st.dataframe(df_filtro[["Data", "Dia", "Reunião", "Backup", "Backup2"]], use_container_width=True, hide_index=True)
+            st.dataframe(
+                df_filtro[["Data", "Dia", "Reunião", "Backup", "Link"]], 
+                column_config={"Link": st.column_config.LinkColumn("📅 Agendar Reunião", display_text="Agendar no Outlook")},
+                use_container_width=True, 
+                hide_index=True
+            )
 
         st.divider()
         # --- VIEW SEMANAL ---
