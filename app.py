@@ -89,7 +89,7 @@ def check_login():
         return False
     return True
 
-# --- EXPORTAÇÃO EXCEL ESTRUTURADA ---
+# --- EXPORTAÇÃO EXCEL ---
 def exportar_excel_mmd(df_total, apenas_um_mes=None):
     output = io.BytesIO()
     df_base = preparar_df_estruturado(df_total)
@@ -102,7 +102,6 @@ def exportar_excel_mmd(df_total, apenas_um_mes=None):
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook  = writer.book
         worksheet = workbook.add_worksheet('Escala MMD')
-        
         fmt_mes = workbook.add_format({'bold': True, 'bg_color': '#D9EAD3', 'align': 'center', 'border': 1})
         fmt_head = workbook.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1})
         fmt_cell = workbook.add_format({'border': 1})
@@ -114,31 +113,24 @@ def exportar_excel_mmd(df_total, apenas_um_mes=None):
 
         current_row = 1
         meses_a_processar = [apenas_um_mes] if apenas_um_mes else list(MESES_NOMES.keys())
-
         for mes_nome in meses_a_processar:
             df_mes = df_base[df_base['dt_obj'].dt.month == MESES_NOMES[mes_nome]]
             if df_mes.empty: continue
-            
             worksheet.merge_range(current_row, 0, current_row, 6, mes_nome.upper(), fmt_mes)
             current_row += 1
-            
             for _, row in df_mes.iterrows():
                 for col_num, col_name in enumerate(colunas):
                     worksheet.write(current_row, col_num, str(row[col_name]), fmt_cell)
                 current_row += 1
-            
     return output.getvalue()
 
 def preparar_df_estruturado(df_input):
     df_input['dt_aux'] = pd.to_datetime(df_input['Data'], format='%d/%m/%Y')
     df_sorted = df_input.sort_values('dt_aux')
-    
     manha = df_sorted[df_sorted['Reunião'] == 'Flash Manhã'][['Data', 'Dia', 'Apresentador', 'Backup']].copy()
     manha.columns = ['Data', 'Dia', 'Responsável Manhã', 'Backup Manhã']
-    
     tarde = df_sorted[df_sorted['Reunião'].isin(['Flash Tarde', 'DOR'])][['Data', 'Apresentador', 'Backup', 'Reunião']].copy()
     tarde.columns = ['Data', 'Responsável Tarde', 'Backup Tarde', 'Tipo Tarde/DOR']
-    
     return pd.merge(manha, tarde, on='Data', how='outer').fillna("")
 
 def criar_link_outlook(data_str, reuniao):
@@ -170,13 +162,13 @@ def gerar_escala_final(nomes):
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
         aps_no_dia = []
         
-        # Manhã
+        # 1. Manhã
         ap_m = fila_f[idx_f % len(fila_f)]
         b1_m = encontrar_backup_vivo(ap_m, nomes); b2_m = encontrar_backup_vivo(b1_m, nomes); b3_m = encontrar_backup_vivo(b2_m, nomes)
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": b1_m, "Backup2": b2_m, "Backup3": b3_m, "Link": criar_link_outlook(data_s, "Flash Manhã")})
         aps_no_dia.append(ap_m); idx_f += 1
         
-        # Tarde (DOR ou Flash)
+        # 2. Tarde (DOR ou Flash)
         if d_sem in [1, 3]:
             while nomes_dor[idx_d % len(nomes_dor)] in aps_no_dia: idx_d += 1
             ap_t, reuniao_t = nomes_dor[idx_d % len(nomes_dor)], "DOR"
@@ -188,8 +180,33 @@ def gerar_escala_final(nomes):
             
         b1_t = encontrar_backup_vivo(ap_t, nomes); b2_t = encontrar_backup_vivo(b1_t, nomes); b3_t = encontrar_backup_vivo(b2_t, nomes)
         escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": reuniao_t, "Apresentador": ap_t, "Backup": b1_t, "Backup2": b2_t, "Backup3": b3_t, "Link": criar_link_outlook(data_s, reuniao_t)})
-        
-    return pd.DataFrame(escala)
+    
+    df_escala = pd.DataFrame(escala)
+
+    # --- AJUSTE MANUAL (OVERRIDE) ---
+    # Pegamos a última ocorrência de Anna Laura e Amanda no DOR para trocar por Mijal e Luca
+    # Assim equalizamos 5 para cada.
+    
+    indices_anna = df_escala[(df_escala['Apresentador'] == 'Anna Laura') & (df_escala['Reunião'] == 'DOR')].index
+    indices_amanda = df_escala[(df_escala['Apresentador'] == 'Amanda') & (df_escala['Reunião'] == 'DOR')].index
+
+    if len(indices_anna) > 5:
+        idx_troca = indices_anna[-1] # Pega a última apresentação dela
+        df_escala.at[idx_troca, 'Apresentador'] = 'Mijal'
+        # Atualiza backups do novo apresentador
+        b1 = encontrar_backup_vivo('Mijal', nomes)
+        df_escala.at[idx_troca, 'Backup'] = b1
+        df_escala.at[idx_troca, 'Backup2'] = encontrar_backup_vivo(b1, nomes)
+
+    if len(indices_amanda) > 5:
+        idx_troca_2 = indices_amanda[-1] # Pega a última apresentação dela
+        df_escala.at[idx_troca_2, 'Apresentador'] = 'Luca'
+        # Atualiza backups do novo apresentador
+        b1 = encontrar_backup_vivo('Luca', nomes)
+        df_escala.at[idx_troca_2, 'Backup'] = b1
+        df_escala.at[idx_troca_2, 'Backup2'] = encontrar_backup_vivo(b1, nomes)
+
+    return df_escala
 
 def renderizar_card(row):
     st.markdown(f"""
@@ -213,7 +230,7 @@ if check_login():
         if st.sidebar.toggle("♿ Ativar Acessibilidade", value=False): injetar_leitor_acessibilidade()
         
         df_total = gerar_escala_final(nomes_lista)
-        st.title(f"🚀 MMD | Dashboard de Escalas {datetime.now().year}")
+        st.title(f"🚀 MMD | Portal de Escalas {datetime.now().year}")
 
         c_exp1, c_exp2 = st.columns(2)
         with c_exp1:
@@ -225,7 +242,6 @@ if check_login():
                 st.download_button("📥 Baixar Ano Completo", exportar_excel_mmd(df_total), f"Escala_Anual_{datetime.now().year}.xlsx", use_container_width=True)
 
         st.divider()
-        # --- BUSCA POR APRESENTADOR (TABELA LIMPA COM LINK OUTLOOK) ---
         busca_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
         if busca_nome != "Todos":
             df_filtro = df_total[df_total["Apresentador"] == busca_nome].copy()
@@ -234,16 +250,12 @@ if check_login():
             st.dataframe(
                 df_filtro[["Data", "Dia", "Reunião", "Backup", "Link"]], 
                 column_config={"Link": st.column_config.LinkColumn("📅 Agendar Reunião", display_text="Agendar no Outlook")},
-                use_container_width=True, 
-                hide_index=True
+                use_container_width=True, hide_index=True
             )
 
         st.divider()
-        # --- VIEW SEMANAL ---
-        sem_atual = datetime.now().isocalendar()[1]
-        sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
+        sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=datetime.now().isocalendar()[1])
         df_sem = df_total[df_total["Semana"] == sem_busca]
-        
         for data, gp in df_sem.groupby("Data", sort=False):
             st.markdown(f"**{gp['Dia'].iloc[0]} - {data}**")
             cols = st.columns(len(gp))
