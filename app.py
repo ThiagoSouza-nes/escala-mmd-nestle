@@ -163,7 +163,7 @@ def gerar_escala_final(nomes):
     ano_atual = datetime.now().year 
     dias = pd.date_range(datetime(ano_atual, 1, 1), datetime(ano_atual, 12, 31), freq='B')
     fila_f, escala = nomes.copy(), []
-    nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]] # 21 pessoas
+    nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]] 
     idx_f, idx_d = 0, 0
     
     for dia in dias:
@@ -199,7 +199,7 @@ def renderizar_card(row):
         <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
         <span style="font-size: 13px; color: #777;">🛡️ Backup 2: {row['Backup2']}</span><br>
-        <span title="Backup 3: {row['Backup3']}" style="font-size: 11px; color: #bbb; cursor: help;">🔍 Backup 3 (Passe o mouse)</span>
+        <span title="Backup 3: {row['Backup3']}" style="font-size: 11px; color: #bbb; cursor: help;">🔍 Backup 3 (Hover)</span>
         <div style="margin-top: 15px;">
             <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
@@ -216,16 +216,26 @@ if check_login():
         df_total = gerar_escala_final(nomes_lista)
         st.title(f"🚀 MMD | Dashboard de Escalas {datetime.now().year}")
 
-        c1, c2 = st.columns(2)
-        with c1:
+        c_exp1, c_exp2 = st.columns(2)
+        with c_exp1:
             with st.expander("📂 Exportar Mês"):
                 m_sel = st.selectbox("Mês:", list(MESES_NOMES.keys()))
                 st.download_button(f"📥 Baixar {m_sel}", exportar_excel_mmd(df_total, m_sel), f"Escala_{m_sel}.xlsx", use_container_width=True)
-        with c2:
+        with c_exp2:
             with st.expander("📅 Exportar Ano"):
                 st.download_button("📥 Baixar Ano Completo", exportar_excel_mmd(df_total), f"Escala_Anual_{datetime.now().year}.xlsx", use_container_width=True)
 
         st.divider()
+        # --- BUSCA POR APRESENTADOR ---
+        busca_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
+        if busca_nome != "Todos":
+            df_filtro = df_total[df_total["Apresentador"] == busca_nome].copy()
+            df_dor_count = df_filtro[df_filtro["Reunião"] == "DOR"]
+            st.info(f"📊 {busca_nome} tem {len(df_filtro)} apresentações no total, sendo **{len(df_dor_count)} reuniões DOR**.")
+            st.dataframe(df_filtro[["Data", "Dia", "Reunião", "Backup", "Backup2"]], use_container_width=True, hide_index=True)
+
+        st.divider()
+        # --- VIEW SEMANAL ---
         sem_atual = datetime.now().isocalendar()[1]
         sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
         df_sem = df_total[df_total["Semana"] == sem_busca]
