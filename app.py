@@ -3,9 +3,10 @@ import pandas as pd
 from datetime import datetime
 import urllib.parse
 import streamlit.components.v1 as components
+import io
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="MMD | Escala de Apresentações", layout="wide")
+st.set_page_config(page_title="MMD | Portal de Escalas", layout="wide")
 
 SHEET_ID = "1rFbrhxG72T2qhT2lMclAyLtjlHgtqvbxHFrVZ_KlmAU"
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv"
@@ -13,8 +14,13 @@ SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
-# Mapa de Backups (Atualizado: Sonia, Enrique e Faiha removidos)
-MAPA_BACKUPS = {
+MESES_NOMES = {
+    "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, 
+    "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, 
+    "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
+}
+
+MAPA_REFERENCIA = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bianca S.": "Amanda", 
     "Bruna": "Anna Laura", "Bruno": "Bianca M.", 
@@ -26,7 +32,16 @@ MAPA_BACKUPS = {
     "Soledad": "Gisele", "Thiago": "Renan"
 }
 
-# --- FUNÇÃO DE ACESSIBILIDADE ---
+# --- LÓGICA DE BACKUPS ---
+def encontrar_backup_vivo(nome_apresentador, nomes_ativos):
+    proximo = MAPA_REFERENCIA.get(nome_apresentador)
+    tentativas = 0
+    while proximo and proximo not in nomes_ativos and tentativas < len(MAPA_REFERENCIA):
+        proximo = MAPA_REFERENCIA.get(proximo)
+        tentativas += 1
+    return proximo if proximo in nomes_ativos else "Sem Backup Ativo"
+
+# --- ACESSIBILIDADE ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -50,12 +65,11 @@ def injetar_leitor_acessibilidade():
                     falar(textoParaLer);
                 }
             }, true);
-            docAlvo.addEventListener('mouseout', () => {
-                synth.cancel();
-            }, true);
+            docAlvo.addEventListener('mouseout', () => { synth.cancel(); }, true);
         </script>
     """, height=0, width=0)
 
+# --- LOGIN ---
 def check_login():
     if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
@@ -75,119 +89,149 @@ def check_login():
         return False
     return True
 
-def criar_link_outlook(data_str, reuniao, apresentador):
+# --- EXPORTAÇÃO EXCEL ESTRUTURADA ---
+def exportar_excel_mmd(df_total, apenas_um_mes=None):
+    output = io.BytesIO()
+    df_base = preparar_df_estruturado(df_total)
+    df_base['dt_obj'] = pd.to_datetime(df_base['Data'], format='%d/%m/%Y')
+    df_base = df_base.sort_values('dt_obj')
+    
+    if apenas_um_mes:
+        df_base = df_base[df_base['dt_obj'].dt.month == MESES_NOMES[apenas_um_mes]]
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        workbook  = writer.book
+        worksheet = workbook.add_worksheet('Escala MMD')
+        
+        fmt_mes = workbook.add_format({'bold': True, 'bg_color': '#D9EAD3', 'align': 'center', 'border': 1})
+        fmt_head = workbook.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1})
+        fmt_cell = workbook.add_format({'border': 1})
+
+        colunas = ['Data', 'Dia', 'Responsável Manhã', 'Backup Manhã', 'Tipo Tarde/DOR', 'Responsável Tarde', 'Backup Tarde']
+        for col_num, value in enumerate(colunas):
+            worksheet.write(0, col_num, value, fmt_head)
+            worksheet.set_column(col_num, col_num, 18)
+
+        current_row = 1
+        meses_a_processar = [apenas_um_mes] if apenas_um_mes else list(MESES_NOMES.keys())
+
+        for mes_nome in meses_a_processar:
+            df_mes = df_base[df_base['dt_obj'].dt.month == MESES_NOMES[mes_nome]]
+            if df_mes.empty: continue
+            
+            # Divisor de Mês (Mesclado)
+            worksheet.merge_range(current_row, 0, current_row, 6, mes_nome.upper(), fmt_mes)
+            current_row += 1
+            
+            for _, row in df_mes.iterrows():
+                for col_num, col_name in enumerate(colunas):
+                    worksheet.write(current_row, col_num, str(row[col_name]), fmt_cell)
+                current_row += 1
+            
+    return output.getvalue()
+
+def preparar_df_estruturado(df_input):
+    df_input['dt_aux'] = pd.to_datetime(df_input['Data'], format='%d/%m/%Y')
+    df_sorted = df_input.sort_values('dt_aux')
+    
+    manha = df_sorted[df_sorted['Reunião'] == 'Flash Manhã'][['Data', 'Dia', 'Apresentador', 'Backup']].copy()
+    manha.columns = ['Data', 'Dia', 'Responsável Manhã', 'Backup Manhã']
+    
+    tarde = df_sorted[df_sorted['Reunião'].isin(['Flash Tarde', 'DOR'])][['Data', 'Apresentador', 'Backup', 'Reunião']].copy()
+    tarde.columns = ['Data', 'Responsável Tarde', 'Backup Tarde', 'Tipo Tarde/DOR']
+    
+    return pd.merge(manha, tarde, on='Data', how='outer').fillna("")
+
+def criar_link_outlook(data_str, reuniao):
     try:
         data_obj = datetime.strptime(data_str, "%d/%m/%Y")
         data_iso = data_obj.strftime("%Y-%m-%d")
         hora_start = "09:45:00" if "Manhã" in reuniao else "15:00:00"
-        hora_end = "10:15:00" if "Manhã" in reuniao else "15:30:00"
         assunto = urllib.parse.quote(f"🔔 Apresentação MMD: {reuniao}")
-        return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_end}"
+        return f"https://outlook.office.com/calendar/0/deeplink/compose?subject={assunto}&startdt={data_iso}T{hora_start}&enddt={data_iso}T{hora_start}"
     except: return "#"
 
 @st.cache_data(ttl=5)
 def carregar_nomes():
     try:
         df = pd.read_csv(SHEET_URL)
-        # Filtro de segurança para garantir que os removidos não apareçam na lista de nomes
         nomes = df['Funcionario'].dropna().unique().tolist()
-        nomes_filtrados = [n for n in nomes if n not in ["Faiha", "Sonia", "Enrique"]]
-        return sorted(nomes_filtrados)
+        return sorted([n for n in nomes if n not in ["Faiha", "Sonia", "Enrique"]])
     except: return []
 
-# --- LÓGICA DE ESCALA COM ANO AUTOMÁTICO ---
 def gerar_escala_final(nomes):
     ano_atual = datetime.now().year 
     dias = pd.date_range(datetime(ano_atual, 1, 1), datetime(ano_atual, 12, 31), freq='B')
-    
     fila_f, escala = nomes.copy(), []
-    fila_d = [n for n in nomes if n not in ["Dani", "Rafael"]]
+    nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]] # 21 pessoas
     idx_f, idx_d = 0, 0
     
     for dia in dias:
         data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
-        aps_sem = [item['Apresentador'] for item in escala if item['Semana'] == sem]
+        aps_no_dia = []
         
-        while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
+        # Manhã
         ap_m = fila_f[idx_f % len(fila_f)]
-        bkp1 = MAPA_BACKUPS.get(ap_m, "N/A"); bkp2 = MAPA_BACKUPS.get(bkp1, "N/A"); bkp3 = MAPA_BACKUPS.get(bkp2, "N/A")
-        escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": bkp1, "Backup2": bkp2, "Backup3": bkp3, "Link": criar_link_outlook(data_s, "Flash Manhã", ap_m)})
-        aps_sem.append(ap_m); idx_f += 1
+        b1_m = encontrar_backup_vivo(ap_m, nomes); b2_m = encontrar_backup_vivo(b1_m, nomes); b3_m = encontrar_backup_vivo(b2_m, nomes)
+        escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã", "Apresentador": ap_m, "Backup": b1_m, "Backup2": b2_m, "Backup3": b3_m, "Link": criar_link_outlook(data_s, "Flash Manhã")})
+        aps_no_dia.append(ap_m); idx_f += 1
         
-        if d_sem in [1, 3]: 
-            while fila_d[idx_d % len(fila_d)] in aps_sem: idx_d += 1
-            ap_d = fila_d[idx_d % len(fila_d)]
-            bkp1_d = MAPA_BACKUPS.get(ap_d, "N/A"); bkp2_d = MAPA_BACKUPS.get(bkp1_d, "N/A"); bkp3_d = MAPA_BACKUPS.get(bkp2_d, "N/A")
-            escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "DOR", "Apresentador": ap_d, "Backup": bkp1_d, "Backup2": bkp2_d, "Backup3": bkp3_d, "Link": criar_link_outlook(data_s, "DOR", ap_d)})
+        # Tarde (DOR ou Flash)
+        if d_sem in [1, 3]:
+            while nomes_dor[idx_d % len(nomes_dor)] in aps_no_dia: idx_d += 1
+            ap_t, reuniao_t = nomes_dor[idx_d % len(nomes_dor)], "DOR"
             idx_d += 1
         else:
-            while fila_f[idx_f % len(fila_f)] in aps_sem: idx_f += 1
-            ap_t = fila_f[idx_f % len(fila_f)]
-            bkp1_t = MAPA_BACKUPS.get(ap_t, "N/A"); bkp2_t = MAPA_BACKUPS.get(bkp1_t, "N/A"); bkp3_t = MAPA_BACKUPS.get(bkp2_t, "N/A")
-            escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Tarde", "Apresentador": ap_t, "Backup": bkp1_t, "Backup2": bkp2_t, "Backup3": bkp3_t, "Link": criar_link_outlook(data_s, "Flash Tarde", ap_t)})
+            while fila_f[idx_f % len(fila_f)] in aps_no_dia: idx_f += 1
+            ap_t, reuniao_t = fila_f[idx_f % len(fila_f)], "Flash Tarde"
             idx_f += 1
+            
+        b1_t = encontrar_backup_vivo(ap_t, nomes); b2_t = encontrar_backup_vivo(b1_t, nomes); b3_t = encontrar_backup_vivo(b2_t, nomes)
+        escala.append({"Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": reuniao_t, "Apresentador": ap_t, "Backup": b1_t, "Backup2": b2_t, "Backup3": b3_t, "Link": criar_link_outlook(data_s, reuniao_t)})
+        
     return pd.DataFrame(escala)
 
 def renderizar_card(row):
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 180px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 220px; margin-bottom: 10px; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
         <b style="font-size: 14px; color: #31333F;">{row['Reunião']}</b><br><br>
         <span style="font-size: 18px; color: #333; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
-        <span title="Próximo Backup: {row['Backup3']}" style="font-size: 13px; color: #777; cursor: help; display: block; margin-top: 3px;">🛡️ Backup 2: {row['Backup2']}</span><br>
+        <span style="font-size: 13px; color: #777;">🛡️ Backup 2: {row['Backup2']}</span><br>
+        <span title="Backup 3: {row['Backup3']}" style="font-size: 11px; color: #bbb; cursor: help;">🔍 Backup 3 (Passe o mouse)</span>
         <div style="margin-top: 15px;">
             <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- INÍCIO DO APP ---
+# --- EXECUÇÃO ---
 if check_login():
     nomes_lista = carregar_nomes()
     if nomes_lista:
         st.sidebar.title("⚙️ Configurações")
-        acessibilidade = st.sidebar.toggle("♿ Ativar Leitura (Acessibilidade)", value=False)
-        if acessibilidade: injetar_leitor_acessibilidade()
-
+        if st.sidebar.toggle("♿ Ativar Acessibilidade", value=False): injetar_leitor_acessibilidade()
+        
         df_total = gerar_escala_final(nomes_lista)
-        st.title(f"🚀 MMD | Dashboard de Apresentações {datetime.now().year}")
-        
-        # --- BUSCAR APRESENTADOR ---
-        filtro_nome = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes_lista)
-        
-        if filtro_nome != "Todos":
-            # Filtramos as apresentações e adicionamos a coluna de Backup
-            df_p = df_total[df_total["Apresentador"] == filtro_nome].copy()
-            df_p["Backup_Atual"] = MAPA_BACKUPS.get(filtro_nome, "N/A")
-            
-            # Reorganização das colunas para inserir Backup entre Reunião e Semana
-            df_p = df_p[["Data", "Dia", "Reunião", "Backup_Atual", "Semana", "Link"]]
-            
-            st.info(f"📊 {filtro_nome} tem **{len(df_p)}** apresentações em {datetime.now().year}.")
-            
-            st.dataframe(
-                df_p,
-                column_config={
-                    "Data": st.column_config.TextColumn("Data", width="small"),
-                    "Dia": st.column_config.TextColumn("Dia", width="small"),
-                    "Reunião": st.column_config.TextColumn("Reunião", width="medium"),
-                    "Backup_Atual": st.column_config.TextColumn("🔄 Backup", width="medium"),
-                    "Semana": st.column_config.NumberColumn("Sem.", width="small"),
-                    "Link": st.column_config.LinkColumn("📅 Agendar", display_text="Agendar no Outlook", width="small")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-            st.divider()
+        st.title(f"🚀 MMD | Dashboard de Escalas {datetime.now().year}")
 
-        st.subheader("🗓️ Visualização por Semana")
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.expander("📂 Exportar Mês"):
+                m_sel = st.selectbox("Mês:", list(MESES_NOMES.keys()))
+                st.download_button(f"📥 Baixar {m_sel}", exportar_excel_mmd(df_total, m_sel), f"Escala_{m_sel}.xlsx", use_container_width=True)
+        with c2:
+            with st.expander("📅 Exportar Ano"):
+                st.download_button("📥 Baixar Ano Completo", exportar_excel_mmd(df_total), f"Escala_Anual_{datetime.now().year}.xlsx", use_container_width=True)
+
+        st.divider()
         sem_atual = datetime.now().isocalendar()[1]
         sem_busca = st.select_slider("Semana:", options=sorted(df_total["Semana"].unique()), value=sem_atual)
+        df_sem = df_total[df_total["Semana"] == sem_busca]
         
-        df_semana = df_total[df_total["Semana"] == sem_busca]
-        for d_label, group in df_semana.groupby("Data", sort=False):
-            st.markdown(f"**{group['Dia'].iloc[0]} - {d_label}**")
-            cols = st.columns(len(group))
-            for i, (_, row) in enumerate(group.iterrows()):
-                with cols[i]: renderizar_card(row)
+        for data, gp in df_sem.groupby("Data", sort=False):
+            st.markdown(f"**{gp['Dia'].iloc[0]} - {data}**")
+            cols = st.columns(len(gp))
+            for i, (_, r) in enumerate(gp.iterrows()):
+                with cols[i]: renderizar_card(r)
