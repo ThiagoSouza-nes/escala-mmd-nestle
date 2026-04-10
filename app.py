@@ -21,7 +21,7 @@ MESES_NOMES = {
     "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
 }
 
-# MAPA DE HERANÇA (Livia herda Amanda após saída da Bianca S.)
+# MAPA DE HERANÇA
 MAPA_REFERENCIA = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bruna": "Anna Laura", 
@@ -87,7 +87,7 @@ def check_login():
         return False
     return True
 
-# --- MOTOR DE REGRAS MANTIDO ---
+# --- MOTOR DE REGRAS ---
 def gerar_escala_balanceada(nomes):
     random.seed(42)
     fila_base = nomes.copy()
@@ -110,7 +110,6 @@ def gerar_escala_balanceada(nomes):
         
         quem_ja_foi = [e['Apresentador'] for e in escala if e['Semana'] == sem]
         
-        # Flash Manhã
         candidatos_m = [n for n in fila_base if n not in quem_ja_foi]
         ap_m = min(candidatos_m, key=lambda x: cont_total[x])
         cont_total[ap_m] += 1
@@ -123,7 +122,6 @@ def gerar_escala_balanceada(nomes):
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject=Flash%20Manhã&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
 
-        # Tarde
         tipo_t = "DOR" if d_sem in [1, 3] else "Flash Tarde"
         if tipo_t == "DOR":
             cand_t = [n for n in nomes_dor if n not in quem_ja_foi]
@@ -209,17 +207,21 @@ if check_login():
             st.download_button("Baixar Ano Completo", exportar_excel_limpo(df_total), "Escala_Anual.xlsx", use_container_width=True)
 
     st.divider()
-    # --- BUSCA COM O BOTÃO CORRIGIDO ---
+    
+    # --- BUSCA COM DISTRIBUIÇÃO DE COLUNAS OTIMIZADA ---
     busca = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes)
     if busca != "Todos":
         df_b = df_total[df_total["Apresentador"] == busca].copy()
         st.info(f"📊 {busca}: {len(df_b[df_b['Reunião']=='DOR'])} reuniões DOR no ano.")
         
-        # O pulo do gato está aqui: usamos o column_config para exibir texto amigável
         st.dataframe(
             df_b[["Data", "Dia", "Reunião", "Backup", "Link"]], 
             column_config={
-                "Link": st.column_config.LinkColumn("Calendário", display_text="📅 Agendar")
+                "Data": st.column_config.Column(width="small"),
+                "Dia": st.column_config.Column(width="medium"),
+                "Reunião": st.column_config.Column(width="medium"),
+                "Backup": st.column_config.Column(width="medium"),
+                "Link": st.column_config.LinkColumn("Calendário", display_text="📅 Agendar", width="small")
             }, 
             use_container_width=True, hide_index=True
         )
