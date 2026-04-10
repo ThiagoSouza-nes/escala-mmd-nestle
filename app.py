@@ -21,6 +21,8 @@ MESES_NOMES = {
     "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
 }
 
+MESES_REVERSO = {v: k for k, v in MESES_NOMES.items()}
+
 # MAPA DE HERANÇA
 MAPA_REFERENCIA = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
@@ -41,7 +43,7 @@ def encontrar_backup_vivo(nome_apresentador, nomes_ativos):
         tentativas += 1
     return proximo if proximo in nomes_ativos else "Sem Backup Ativo"
 
-# --- ACESSIBILIDADE (LEITOR DE TELA) ---
+# --- ACESSIBILIDADE ---
 def injetar_leitor_acessibilidade():
     components.html("""
         <script>
@@ -87,7 +89,7 @@ def check_login():
         return False
     return True
 
-# --- MOTOR DE REGRAS (EQUILIBRADO) ---
+# --- MOTOR DE REGRAS ---
 def gerar_escala_balanceada(nomes):
     random.seed(42)
     fila_base = nomes.copy()
@@ -117,12 +119,15 @@ def gerar_escala_balanceada(nomes):
         quem_ja_foi.append(ap_m)
         
         b1_m = encontrar_backup_vivo(ap_m, nomes)
+        b2_m = encontrar_backup_vivo(b1_m, nomes)
+        
         escala.append({
             "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã",
-            "Apresentador": ap_m, "Backup": b1_m, "Backup2": encontrar_backup_vivo(b1_m, nomes),
+            "Apresentador": ap_m, "Backup": b1_m, "Backup2": b2_m, "BackupOculto": encontrar_backup_vivo(b2_m, nomes),
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject=Flash%20Manhã&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
 
+        # Tarde
         tipo_t = "DOR" if d_sem in [1, 3] else "Flash Tarde"
         if tipo_t == "DOR":
             cand_t = [n for n in nomes_dor if n not in quem_ja_foi]
@@ -134,72 +139,92 @@ def gerar_escala_balanceada(nomes):
         
         cont_total[ap_t] += 1
         b1_t = encontrar_backup_vivo(ap_t, nomes)
+        b2_t = encontrar_backup_vivo(b1_t, nomes)
+        
         escala.append({
             "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": tipo_t,
-            "Apresentador": ap_t, "Backup": b1_t, "Backup2": encontrar_backup_vivo(b1_t, nomes),
+            "Apresentador": ap_t, "Backup": b1_t, "Backup2": b2_t, "BackupOculto": encontrar_backup_vivo(b2_t, nomes),
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={tipo_t}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
         })
             
     return pd.DataFrame(escala)
 
-# --- EXPORTAÇÃO EXCEL ---
+# --- EXPORTAÇÃO FORMATO SEGUNDA IMAGEM (MESCLAGEM HORIZONTAL) ---
 def exportar_excel_limpo(df_total, mes_nome=None):
     output = io.BytesIO()
     df_c = df_total.copy()
-    df_c['dt_aux'] = pd.to_datetime(df_c['Data'], format='%d/%m/%Y')
+    df_c['dt_obj'] = pd.to_datetime(df_c['Data'], format='%d/%m/%Y')
+    df_c['Mês'] = df_c['dt_obj'].dt.month.map(MESES_REVERSO)
     
-    m = df_c[df_c['Reunião'] == 'Flash Manhã'][['Data', 'Dia', 'Apresentador', 'Backup']].rename(columns={'Apresentador':'Responsável Manhã', 'Backup':'Backup Manhã'})
+    m = df_c[df_c['Reunião'] == 'Flash Manhã'][['Mês', 'Data', 'Dia', 'Apresentador', 'Backup']].rename(columns={'Apresentador':'Responsável Manhã', 'Backup':'Backup Manhã'})
     t = df_c[df_c['Reunião'].isin(['Flash Tarde', 'DOR'])][['Data', 'Apresentador', 'Backup', 'Reunião']].rename(columns={'Apresentador':'Responsável Tarde', 'Backup':'Backup Tarde', 'Reunião':'Tipo Tarde/DOR'})
     
     df_f = pd.merge(m, t, on='Data', how='outer').fillna("")
-    df_f['dt_obj'] = pd.to_datetime(df_f['Data'], format='%d/%m/%Y')
-    df_f = df_f.sort_values('dt_obj')
-    
-    if mes_nome: df_f = df_f[df_f['dt_obj'].dt.month == MESES_NOMES[mes_nome]]
+    df_f['dt_sort'] = pd.to_datetime(df_f['Data'], format='%d/%m/%Y')
+    df_f = df_f.sort_values('dt_sort')
+
+    if mes_nome:
+        df_f = df_f[df_f['Mês'] == mes_nome]
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        sheet = writer.book.add_worksheet('Escala')
-        h_fmt = writer.book.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1})
-        c_fmt = writer.book.add_format({'border': 1})
+        workbook = writer.book
+        worksheet = workbook.add_worksheet('Escala')
+        
+        h_fmt = workbook.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1, 'align': 'center'})
+        m_fmt = workbook.add_format({'bold': True, 'bg_color': '#A6A6A6', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
+        c_fmt = workbook.add_format({'border': 1, 'align': 'center'})
         
         cols = ['Data', 'Dia', 'Responsável Manhã', 'Backup Manhã', 'Tipo Tarde/DOR', 'Responsável Tarde', 'Backup Tarde']
-        for i, v in enumerate(cols): 
-            sheet.write(0, i, v, h_fmt)
-            sheet.set_column(i, i, 18)
-            
-        for r_idx, (_, r) in enumerate(df_f.iterrows(), 1):
-            for c_idx, col in enumerate(cols):
-                sheet.write(r_idx, c_idx, str(r[col]), c_fmt)
+        for idx, col in enumerate(cols):
+            worksheet.write(0, idx, col, h_fmt)
+            worksheet.set_column(idx, idx, 20)
+
+        row_idx = 1
+        mes_atual = ""
+        for _, row in df_f.iterrows():
+            if row['Mês'] != mes_atual:
+                mes_atual = row['Mês']
+                worksheet.merge_range(row_idx, 0, row_idx, 6, mes_atual.upper(), m_fmt)
+                row_idx += 1
+            for col_idx, col_name in enumerate(cols):
+                worksheet.write(row_idx, col_idx, row[col_name], c_fmt)
+            row_idx += 1
+                
     return output.getvalue()
 
-# --- CARD COM CORES LEVADAS A SÉRIO ---
+# --- CARD COM BACKUP 2 VISÍVEL E OCULTO NO HOVER ---
 def renderizar_card(row):
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 200px; margin-bottom: 10px;">
-        <b style="font-size: 14px; color: #444;">{row['Reunião']}</b><br><br>
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 220px; margin-bottom: 10px; color: #333;">
+        <b style="font-size: 14px; color: #555;">{row['Reunião']}</b><br><br>
         <span style="font-size: 18px; font-weight: bold; color: #111;">🏆 {row['Apresentador']}</span><br><br>
-        <span style="font-size: 13px; color: #333;">🔄 Backup: {row['Backup']}</span><br>
-        <span style="font-size: 13px; color: #333;">🛡️ Backup 2: {row['Backup2']}</span>
+        <span style="font-size: 13px; color: #444;">🔄 Backup: {row['Backup']}</span><br>
+        <span title="Backup Oculto: {row['BackupOculto']}" style="font-size: 13px; color: #444; cursor: help;">🛡️ Backup 2: {row['Backup2']}</span>
         <div style="margin-top: 15px;">
             <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- EXECUÇÃO PRINCIPAL ---
+# --- EXECUÇÃO ---
 if check_login():
     try:
         df_csv = pd.read_csv(SHEET_URL)
         nomes = sorted([n for n in df_csv['Funcionario'].dropna().unique() if n not in ["Faiha", "Sonia", "Enrique", "Bianca S."]])
     except: nomes = list(MAPA_REFERENCIA.keys())
 
-    # --- SIDEBAR COM ACESSIBILIDADE RESTAURADA ---
+    # SIDEBAR
     st.sidebar.title("⚙️ Painel")
-    if st.sidebar.toggle("♿ Ativar Acessibilidade", value=False):
+    if st.sidebar.toggle("Ativar Acessibilidade", value=False):
         injetar_leitor_acessibilidade()
-    
+    st.sidebar.divider()
+    with st.sidebar.expander("📝 Roteiro Terça: Práticas + Iniciativas", expanded=True):
+        st.markdown("**Pauta:** Práticas + Iniciativas + Tracker + Work Plan\n- 📑 Lista de presença\n- ⏱ Pergunta Timekeeper\n- 🗓 Escala\n- 📈 Behavior\n- 🎯 Plano de ação\n- ✅ Práticas\n- 📊 NPS\n- 💡 Iniciativas\n- 📉 Tracker\n- 🛠 Work Plan\n- ⚠️ Plano de ação (Issues)\n- 🛡 SHE\n- 🏆 Behavior")
+    with st.sidebar.expander("📝 Roteiro Quinta: Lead Time + SLA", expanded=True):
+        st.markdown("**Pauta:** Lead Time e SLA + FTR + CATS/BH + Workplan\n- 📑 Lista de presença\n- ⏱ Pergunta Timekeeper\n- 🗓 Escala\n- 📈 Behavior\n- 🎯 Plano de ação\n- 🕒 Lead Time\n- ✅ FTR\n- 📁 Cats+BH\n- 🛠 Work Plan\n- ⚠️ Issues\n- 📍 Plano de ação\n- 🛡 SHE\n- 🏆 Behavior")
+
     df_total = gerar_escala_balanceada(nomes)
-    st.title(f"🚀 MMD | Portal de Escalas {datetime.now().year}")
+    st.title(f"🚀 MMD | Portal de Escalas 2026")
 
     col_e1, col_e2 = st.columns(2)
     with col_e1:
@@ -212,19 +237,23 @@ if check_login():
 
     st.divider()
     
-    # --- BUSCA COM COLUNAS BEM DISTRIBUÍDAS ---
+    # --- BUSCA COM CONTADORES E TABELA CORRIGIDA ---
     busca = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes)
     if busca != "Todos":
         df_b = df_total[df_total["Apresentador"] == busca].copy()
-        st.info(f"📊 {busca}: {len(df_b[df_b['Reunião']=='DOR'])} reuniões DOR no ano.")
+        total_ap = len(df_b)
+        total_dor = len(df_b[df_b["Reunião"] == "DOR"])
+        
+        st.info(f"📊 {busca}: {total_ap} reuniões no ano (sendo {total_dor} reuniões DOR).")
         
         st.dataframe(
-            df_b[["Data", "Dia", "Reunião", "Backup", "Link"]], 
+            df_b[["Data", "Dia", "Reunião", "Backup", "Backup2", "Link"]], 
             column_config={
                 "Data": st.column_config.Column(width="small"),
                 "Dia": st.column_config.Column(width="small"),
                 "Reunião": st.column_config.Column(width="medium"),
                 "Backup": st.column_config.Column(width="medium"),
+                "Backup2": st.column_config.Column(width="medium"),
                 "Link": st.column_config.LinkColumn("Calendário", display_text="📅 Agendar", width="small")
             }, 
             use_container_width=True, hide_index=True
