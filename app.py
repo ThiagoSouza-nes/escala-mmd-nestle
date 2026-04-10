@@ -41,34 +41,6 @@ def encontrar_backup_vivo(nome_apresentador, nomes_ativos):
         tentativas += 1
     return proximo if proximo in nomes_ativos else "Sem Backup Ativo"
 
-# --- ACESSIBILIDADE ---
-def injetar_leitor_acessibilidade():
-    components.html("""
-        <script>
-            const synth = window.speechSynthesis;
-            let ultimoTexto = "";
-            function falar(texto) {
-                if (!texto || texto === ultimoTexto) return;
-                synth.cancel(); 
-                const ut = new SpeechSynthesisUtterance(texto);
-                ut.lang = 'pt-BR';
-                ut.rate = 1.1;
-                ultimoTexto = texto;
-                synth.speak(ut);
-                setTimeout(() => { ultimoTexto = ""; }, 800);
-            }
-            const docAlvo = window.parent.document;
-            docAlvo.addEventListener('mouseover', (e) => {
-                const el = e.target;
-                const textoParaLer = (el.innerText || el.textContent).trim();
-                if (textoParaLer.length > 0 && !textoParaLer.includes("http")) {
-                    falar(textoParaLer);
-                }
-            }, true);
-            docAlvo.addEventListener('mouseout', () => { synth.cancel(); }, true);
-        </script>
-    """, height=0, width=0)
-
 # --- LOGIN ---
 def check_login():
     if "logged_in" not in st.session_state: st.session_state.logged_in = False
@@ -87,7 +59,7 @@ def check_login():
         return False
     return True
 
-# --- MOTOR DE REGRAS ---
+# --- MOTOR DE REGRAS (MANTIDO) ---
 def gerar_escala_balanceada(nomes):
     random.seed(42)
     fila_base = nomes.copy()
@@ -141,7 +113,7 @@ def gerar_escala_balanceada(nomes):
             
     return pd.DataFrame(escala)
 
-# --- EXPORTAÇÃO EXCEL ---
+# --- EXPORTAÇÃO ---
 def exportar_excel_limpo(df_total, mes_nome=None):
     output = io.BytesIO()
     df_c = df_total.copy()
@@ -171,29 +143,27 @@ def exportar_excel_limpo(df_total, mes_nome=None):
                 sheet.write(r_idx, c_idx, str(r[col]), c_fmt)
     return output.getvalue()
 
+# --- CARD COM CORREÇÃO DE COR ---
 def renderizar_card(row):
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 200px; margin-bottom: 10px;">
-        <b style="font-size: 14px;">{row['Reunião']}</b><br><br>
-        <span style="font-size: 18px; font-weight: bold;">🏆 {row['Apresentador']}</span><br><br>
-        <span style="font-size: 13px; color: #666;">🔄 Backup: {row['Backup']}</span><br>
-        <span style="font-size: 13px; color: #777;">🛡️ Backup 2: {row['Backup2']}</span>
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 200px; margin-bottom: 10px; color: #333;">
+        <b style="font-size: 14px; color: #555;">{row['Reunião']}</b><br><br>
+        <span style="font-size: 18px; font-weight: bold; color: #111;">🏆 {row['Apresentador']}</span><br><br>
+        <span style="font-size: 13px; color: #444;">🔄 Backup: {row['Backup']}</span><br>
+        <span style="font-size: 13px; color: #444;">🛡️ Backup 2: {row['Backup2']}</span>
         <div style="margin-top: 15px;">
             <a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">📅 AGENDAR</a>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# --- EXECUÇÃO DO APP ---
+# --- EXECUÇÃO ---
 if check_login():
     try:
         df_csv = pd.read_csv(SHEET_URL)
         nomes = sorted([n for n in df_csv['Funcionario'].dropna().unique() if n not in ["Faiha", "Sonia", "Enrique", "Bianca S."]])
     except: nomes = list(MAPA_REFERENCIA.keys())
 
-    st.sidebar.title("⚙️ Painel")
-    if st.sidebar.toggle("Ativar Acessibilidade"): injetar_leitor_acessibilidade()
-    
     df_total = gerar_escala_balanceada(nomes)
     st.title(f"🚀 MMD | Portal de Escalas {datetime.now().year}")
 
@@ -208,7 +178,7 @@ if check_login():
 
     st.divider()
     
-    # --- BUSCA COM DISTRIBUIÇÃO DE COLUNAS OTIMIZADA ---
+    # --- BUSCA COM COLUNAS OTIMIZADAS ---
     busca = st.selectbox("🔍 Buscar por Apresentador:", ["Todos"] + nomes)
     if busca != "Todos":
         df_b = df_total[df_total["Apresentador"] == busca].copy()
@@ -218,7 +188,7 @@ if check_login():
             df_b[["Data", "Dia", "Reunião", "Backup", "Link"]], 
             column_config={
                 "Data": st.column_config.Column(width="small"),
-                "Dia": st.column_config.Column(width="medium"),
+                "Dia": st.column_config.Column(width="small"),
                 "Reunião": st.column_config.Column(width="medium"),
                 "Backup": st.column_config.Column(width="medium"),
                 "Link": st.column_config.LinkColumn("Calendário", display_text="📅 Agendar", width="small")
