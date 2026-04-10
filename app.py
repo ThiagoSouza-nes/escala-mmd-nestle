@@ -21,7 +21,7 @@ MESES_NOMES = {
     "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
 }
 
-# MAPA DE HERANÇA (Bianca S. Removida -> Livia aponta para Amanda)
+# MAPA DE HERANÇA (Bianca S. Fora -> Livia herda Amanda)
 MAPA_REFERENCIA = {
     "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", 
     "Ariel": "Rafael", "Bianca M.": "Ariel", "Bruna": "Anna Laura", 
@@ -87,20 +87,22 @@ def check_login():
         return False
     return True
 
-# --- GERAÇÃO DE ESCALA ---
-def gerar_escala_final(nomes):
-    random.seed(42) # Semente para embaralhamento fixo (não muda ao dar refresh)
-    fila_flash = nomes.copy()
-    random.shuffle(fila_flash)
+# --- MOTOR DE JUSTIÇA (BALANÇO DE CARGA) ---
+def gerar_escala_justa(nomes):
+    random.seed(42)
+    fila_base = nomes.copy()
+    random.shuffle(fila_base)
     
     nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]]
     random.shuffle(nomes_dor)
     
+    # Contadores para garantir justiça
+    contagem_total = {n: 0 for n in nomes}
+    contagem_dor = {n: 0 for n in nomes_dor}
+    
     ano = datetime.now().year
     dias = pd.date_range(datetime(ano, 1, 1), datetime(ano, 12, 31), freq='B')
     escala = []
-    
-    p_f, p_d = 0, 0
     
     for dia in dias:
         data_s = dia.strftime("%d/%m/%Y")
@@ -108,52 +110,48 @@ def gerar_escala_final(nomes):
         d_sem = dia.weekday()
         d_nome = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"][d_sem]
         
-        # Filtra quem já apresentou nesta semana específica
-        apresentaram_na_semana = [e['Apresentador'] for e in escala if e['Semana'] == sem]
+        quem_ja_foi_na_semana = [e['Apresentador'] for e in escala if e['Semana'] == sem]
         
-        # 1. FLASH MANHÃ
-        tentativas = 0
-        while fila_flash[p_f % len(fila_flash)] in apresentaram_na_semana and tentativas < len(fila_flash):
-            p_f += 1
-            tentativas += 1
+        # 1. FLASH MANHÃ (Busca quem tem menos apresentações totais e não foi na semana)
+        candidatos_m = [n for n in fila_base if n not in quem_ja_foi_na_semana]
+        ap_m = min(candidatos_m, key=lambda x: contagem_total[x])
         
-        ap_m = fila_flash[p_f % len(fila_flash)]
-        b1_m = encontrar_backup_vivo(ap_m, nomes); b2_m = encontrar_backup_vivo(b1_m, nomes)
+        contagem_total[ap_m] += 1
+        quem_ja_foi_na_semana.append(ap_m)
+        
+        b1_m = encontrar_backup_vivo(ap_m, nomes)
+        b2_m = encontrar_backup_vivo(b1_m, nomes)
         
         escala.append({
             "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã",
             "Apresentador": ap_m, "Backup": b1_m, "Backup2": b2_m, "Backup3": encontrar_backup_vivo(b2_m, nomes),
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject=Flash%20Manhã&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
-        apresentaram_na_semana.append(ap_m)
-        p_f += 1
 
         # 2. TARDE (DOR ou FLASH)
         tipo_t = "DOR" if d_sem in [1, 3] else "Flash Tarde"
-        alvo_lista = nomes_dor if tipo_t == "DOR" else fila_flash
-        ptr = p_d if tipo_t == "DOR" else p_f
         
-        tentativas = 0
-        while alvo_lista[ptr % len(alvo_lista)] in apresentaram_na_semana and tentativas < len(alvo_lista):
-            ptr += 1
-            tentativas += 1
+        if tipo_t == "DOR":
+            candidatos_t = [n for n in nomes_dor if n not in quem_ja_foi_na_semana]
+            ap_t = min(candidatos_t, key=lambda x: contagem_dor[x])
+            contagem_dor[ap_t] += 1
+        else:
+            candidatos_t = [n for n in fila_base if n not in quem_ja_foi_na_semana]
+            ap_t = min(candidatos_t, key=lambda x: contagem_total[x])
             
-        ap_t = alvo_lista[ptr % len(alvo_lista)]
-        b1_t = encontrar_backup_vivo(ap_t, nomes)
+        contagem_total[ap_t] += 1
         
+        b1_t = encontrar_backup_vivo(ap_t, nomes)
         escala.append({
             "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": tipo_t,
             "Apresentador": ap_t, "Backup": b1_t, "Backup2": encontrar_backup_vivo(b1_t, nomes),
             "Backup3": encontrar_backup_vivo(encontrar_backup_vivo(b1_t, nomes), nomes),
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={tipo_t}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
         })
-        
-        if tipo_t == "DOR": p_d = ptr + 1
-        else: p_f = ptr + 1
             
     return pd.DataFrame(escala)
 
-# --- EXPORTAÇÃO EXCEL ---
+# --- EXPORTAÇÃO EXCEL (Corrigido para evitar AttributeError) ---
 def exportar_excel(df_total, mes_nome=None):
     output = io.BytesIO()
     df_copy = df_total.copy()
@@ -213,9 +211,9 @@ if check_login():
     except: nomes_limpos = list(MAPA_REFERENCIA.keys())
 
     st.sidebar.title("⚙️ Configurações")
-    if st.sidebar.toggle("♿ Ativar Acessibilidade", value=False): injetar_leitor_acessibilidade()
+    if st.sidebar.toggle("Ativar Acessibilidade", value=False): injetar_leitor_acessibilidade()
     
-    df_total = gerar_escala_final(nomes_limpos)
+    df_total = gerar_escala_justa(nomes_limpos)
     st.title(f"🚀 MMD | Portal de Escalas {datetime.now().year}")
 
     c1, c2 = st.columns(2)
