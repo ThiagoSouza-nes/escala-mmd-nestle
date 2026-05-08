@@ -277,7 +277,7 @@ if check_login():
         \n**CRM:** Julia, Bruna, Renan
         \n**Material Direto Brasil:** Livia, Rafael
         \n**Material Direto Latam:** Ariel, Cristian, Enrique, Sonia, Gisele
-        \n**Fert Latam:** Jazmin, Florencia, Jesus, Bianca, Soledad, Mijal, Silvana, Andrea, Honorato, Faiha
+        \n**Fert Latam:** Jazmin, Florencia, Jesus, Bianca, Soledad, Mijal, Andrea, Honorato, Faiha
         """)
 
     try:
