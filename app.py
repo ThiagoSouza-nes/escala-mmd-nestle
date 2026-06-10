@@ -273,11 +273,11 @@ if check_login():
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
         **Indireto Brasil:** Debora, Dani, Abigail, Luca, Bruno, Thiago, Anna
-        \n**Material Fert Brasil:** Amanda, Sabrina, Douglas
+        \n**Material Fert Brasil:** Amanda, Douglas
         \n**CRM:** Julia, Bruna, Renan
         \n**Material Direto Brasil:** Livia, Rafael
-        \n**Material Direto Latam:** Ariel, Cristian, Enrique, Sonia, Gisele
-        \n**Fert Latam:** Jazmin, Florencia, Jesus, Bianca, Soledad, Mijal, Andrea, Honorato, Faiha
+        \n**Material Direto Latam:** Ariel, Enrique, Sonia, Gisele
+        \n**Fert Latam:** Jazmin, Florencia, Jesus, Bianca, Soledad, Mijal, Andrea, Honorato, Nathan, Rocio, Faiha
         """)
 
     try:
