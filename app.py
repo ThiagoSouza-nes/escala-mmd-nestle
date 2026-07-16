@@ -1,4 +1,21 @@
 import streamlit as st
+
+# Mude para True para tirar o app do ar e False para voltar ao normal
+MODO_MANUTENCAO = True 
+
+if MODO_MANUTENCAO:
+    st.title("🚧 Portal MMD 🚧")
+    st.subheader("Sistema em Manutenção")
+    st.info("Estamos atualizando a base de dados e inserindo os novos colaboradores. O portal estará de volta em breve com novidades!")
+    st.image("https://cdn-icons-png.flaticon.com/512/3251/3251465.png", width=200) # Opcional: ícone de engrenagem/construção
+    st.stop() # Esta função interrompe a execução do restante do código do app
+
+# --- O RESTANTE DO SEU CÓDIGO DO PORTAL FICA AQUI ABAIXO ---
+# st.write("Menu de Reuniões...")
+
+
+
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
