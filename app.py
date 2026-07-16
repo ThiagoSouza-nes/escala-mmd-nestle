@@ -10,17 +10,18 @@ if MODO_MANUTENCAO:
     st.image("https://cdn-icons-png.flaticon.com/512/3251/3251465.png", width=200) # Opcional: ícone de engrenagem/construção
     st.stop() # Esta função interrompe a execução do restante do código do app
 
+# --- O RESTANTE DO SEU CÓDIGO DO PORTAL FICA AQUI ABAIXO ---
+# st.write("Menu de Reuniões...")
+
+
+
+import streamlit as st
 import pandas as pd
 from datetime import datetime
+import urllib.parse
 import streamlit.components.v1 as components
-
-# Importação dos módulos locais recém-criados!
-from sheets_handler import carregar_dados_planilha
-from escala_regras import (
-    gerar_escala_balanceada, 
-    exportar_excel_limpo, 
-    MAPA_REFERENCIA_FALLBACK
-)
+import io
+import random
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="MMD | Portal de Escalas", layout="wide")
@@ -136,10 +137,29 @@ def injetar_leitor_acessibilidade(lang_code):
         </script>
     """, height=0, width=0)
 
-# --- CREDENCIAIS ---
+# --- MOTOR DE REGRAS ---
 SHEET_ID = "1rFbrhxG72T2qhT2lMclAyLtjlHgtqvbxHFrVZ_KlmAU"
+# Adicionamos "&sheet=Backups" para o Python ir direto para a segunda aba
+SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Backups"
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
+
+MAPA_REFERENCIA = {
+    "Abigail": "Dani", "Amanda": "Mijal", "Anna Laura": "Soledad", "Ariel": "Rafael", 
+    "Bianca M.": "Ariel", "Bruna": "Anna Laura", "Bruno": "Bianca M.", "Dani": "Jesus", 
+    "Debora": "Bruna", "Diana": "Julia", "Florencia": "Diana", "Gisele": "Thiago", 
+    "Honorato": "Bruno", "Jazmin": "Abigail", "Jesus": "Luca", "Julia": "Honorato", 
+    "Livia": "Amanda", "Luca": "Jazmin", "Mijal": "Livia", "Rafael": "Florencia", 
+    "Renan": "Debora", "Soledad": "Gisele", "Thiago": "Renan"
+}
+
+def encontrar_backup_vivo(nome, nomes_ativos):
+    proximo = MAPA_REFERENCIA.get(nome)
+    tentativas = 0
+    while proximo and proximo not in nomes_ativos and tentativas < len(MAPA_REFERENCIA):
+        proximo = MAPA_REFERENCIA.get(proximo)
+        tentativas += 1
+    return proximo if proximo in nomes_ativos else "Sem Backup Ativo"
 
 def check_login():
     if "logged_in" not in st.session_state: st.session_state.logged_in = False
@@ -157,6 +177,83 @@ def check_login():
                     else: st.error("Acesso negado / Acceso denegado")
         return False
     return True
+
+def gerar_escala_balanceada(nomes):
+    random.seed(42)
+    fila_base = nomes.copy()
+    random.shuffle(fila_base)
+    nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]]
+    random.shuffle(nomes_dor)
+    cont_total = {n: 0 for n in nomes}
+    cont_dor = {n: 0 for n in nomes_dor}
+    dias_range = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
+    escala = []
+    
+    for dia in dias_range:
+        data_s, sem, d_sem = dia.strftime("%d/%m/%Y"), dia.isocalendar()[1], dia.weekday()
+        d_nome = t["dias"][d_sem]
+        quem_ja_foi = [e['Apresentador'] for e in escala if e['Semana'] == sem]
+        
+        ap_m = min([n for n in fila_base if n not in quem_ja_foi], key=lambda x: cont_total[x])
+        cont_total[ap_m] += 1
+        quem_ja_foi.append(ap_m)
+        escala.append({
+            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": t["flash_m"],
+            "Apresentador": ap_m, "Backup": encontrar_backup_vivo(ap_m, nomes),
+            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_m, nomes), nomes),
+            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_m, nomes), nomes), nomes),
+            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote(t['flash_m'])}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
+        })
+
+        tipo_t = "DOR" if d_sem in [1, 3] else "Flash Tarde"
+        cand_t = [n for n in (nomes_dor if tipo_t == "DOR" else fila_base) if n not in quem_ja_foi]
+        ap_t = min(cand_t, key=lambda x: cont_dor[x] if tipo_t == "DOR" else cont_total[x])
+        if tipo_t == "DOR": cont_dor[ap_t] += 1
+        cont_total[ap_t] += 1
+        escala.append({
+            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": tipo_t,
+            "Apresentador": ap_t, "Backup": encontrar_backup_vivo(ap_t, nomes),
+            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_t, nomes), nomes),
+            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_t, nomes), nomes), nomes),
+            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote(tipo_t)}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
+        })
+    return pd.DataFrame(escala)
+
+def exportar_excel_limpo(df_total, mes_nome=None):
+    output = io.BytesIO()
+    df_c = df_total.copy()
+    df_c['dt_obj'] = pd.to_datetime(df_c['Data'], format='%d/%m/%Y')
+    df_c = df_c.sort_values('dt_obj')
+    meses_map = {i+1: nome for i, nome in enumerate(t["meses"])}
+    df_c['Mês'] = df_c['dt_obj'].dt.month.map(meses_map)
+    
+    m = df_c[df_c['Reunião'] == t['flash_m']][['Mês', 'Data', 'Dia', 'Apresentador', 'Backup']].rename(columns={'Apresentador':t['resp_m'], 'Backup':t['backup'] + ' M'})
+    t_df = df_c[df_c['Reunião'].isin(['Flash Tarde', 'DOR'])][['Data', 'Apresentador', 'Backup', 'Reunião']].rename(columns={'Apresentador':t['resp_t'], 'Backup':t['backup'] + ' T', 'Reunião':t['tipo_t']})
+    
+    df_f = pd.merge(m, t_df, on='Data', how='outer').fillna("")
+    df_f['dt_sort'] = pd.to_datetime(df_f['Data'], format='%d/%m/%Y')
+    df_f = df_f.sort_values('dt_sort')
+    if mes_nome: df_f = df_f[df_f['Mês'] == mes_nome]
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        workbook, worksheet = writer.book, writer.book.add_worksheet('Escala')
+        h_fmt = workbook.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1, 'align': 'center'})
+        m_fmt = workbook.add_format({'bold': True, 'bg_color': '#A6A6A6', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
+        c_fmt = workbook.add_format({'border': 1, 'align': 'center'})
+        cols = ['Data', 'Dia', t['resp_m'], t['backup'] + ' M', t['tipo_t'], t['resp_t'], t['backup'] + ' T']
+        for i, col in enumerate(cols): 
+            worksheet.write(0, i, col, h_fmt)
+            worksheet.set_column(i, i, 18)
+            
+        row_idx, mes_atual = 1, ""
+        for _, row in df_f.iterrows():
+            if row['Mês'] != mes_atual:
+                mes_atual = row['Mês']
+                worksheet.merge_range(row_idx, 0, row_idx, 6, mes_atual.upper(), m_fmt)
+                row_idx += 1
+            for j, c in enumerate(cols): worksheet.write(row_idx, j, row[c] if c in row else "", c_fmt)
+            row_idx += 1
+    return output.getvalue()
 
 def renderizar_card(row):
     st.markdown(f"""
@@ -201,25 +298,37 @@ if check_login():
         \n**Fert Latam:** Florencia, Jesus, Bianca, Soledad, Mijal, German, Sebastian, Andrea, Honorato, Nathan, Rocio, Faiha
         """)
 
-    # 1. Carrega as informações das planilhas de forma segura utilizando o novo módulo
+    # 1. Carrega as informações das planilhas de forma segura dentro do Login
     try:
-        nomes, MAPA_REFERENCIA = carregar_dados_planilha(SHEET_ID)
+        URL_PAGINA1 = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Página1"
+        URL_BACKUPS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Backups"
+        
+        df_backups = pd.read_csv(URL_BACKUPS)
+        df_backups['Funcionario'] = df_backups['Funcionario'].astype(str).str.strip()
+        df_backups['Backups'] = df_backups['Backups'].astype(str).str.strip()
+        MAPA_REFERENCIA = dict(zip(df_backups['Funcionario'], df_backups['Backups']))
+        
+        df_funcionarios = pd.read_csv(URL_PAGINA1)
+        df_funcionarios['Funcionario'] = df_funcionarios['Funcionario'].astype(str).str.strip()
+        
+        nomes = [n for n in df_funcionarios['Funcionario'].unique() if n not in ["Faiha", "Bianca S.", "nan", "None"]]
+        nomes = sorted(nomes)
+        
     except Exception as e:
-        MAPA_REFERENCIA = MAPA_REFERENCIA_FALLBACK
         nomes = list(MAPA_REFERENCIA.keys())
 
     # 2. Gera a escala e renderiza a tela principal apenas para quem está logado!
-    df_total = gerar_escala_balanceada(nomes, MAPA_REFERENCIA, t)
+    df_total = gerar_escala_balanceada(nomes)
     st.title(t["titulo"])
 
     col_e1, col_e2 = st.columns(2)
     with col_e1:
         with st.expander(t["exp_mes"]):
             m_sel = st.selectbox(t["mes_col"] + ":", t["meses"])
-            st.download_button(f"{t['baixar']} {m_sel}", exportar_excel_limpo(df_total, t, m_sel), f"Escala_{m_sel}.xlsx", use_container_width=True)
+            st.download_button(f"{t['baixar']} {m_sel}", exportar_excel_limpo(df_total, m_sel), f"Escala_{m_sel}.xlsx", use_container_width=True)
     with col_e2:
         with st.expander(t["exp_ano"]):
-            st.download_button(t["baixar"] + f" {t['mes_col']} Completo", exportar_excel_limpo(df_total, t), "Escala_Anual.xlsx", use_container_width=True)
+            st.download_button(t["baixar"] + f" {t['mes_col']} Completo", exportar_excel_limpo(df_total), "Escala_Anual.xlsx", use_container_width=True)
 
     st.divider()
     busca = st.selectbox(t["buscar"], [t["todos"]] + nomes)
