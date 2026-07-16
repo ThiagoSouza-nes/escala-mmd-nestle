@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Mude para True para tirar o app do ar e False para voltar ao normal
-MODO_MANUTENCAO = True 
+MODO_MANUTENCAO = False 
 
 if MODO_MANUTENCAO:
     st.title("🚧 Portal MMD 🚧")
