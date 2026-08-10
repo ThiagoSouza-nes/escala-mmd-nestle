@@ -290,7 +290,7 @@ if check_login():
 
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
-        **Indireto Brasil:** Debora, Dani, Dyana, Abigail, Luca, Bruno, Thiago, Anna
+        **Indireto Brasil:** Debora, Dani, Dyana, Abigail, Luca, Bruno, Thiago, Anna, Tobias
         \n**Material Fert Brasil:** Amanda, Douglas, Renan
         \n**CRM:** Julia, Bruna 
         \n**Material Direto Brasil:** Livia, Rafael
