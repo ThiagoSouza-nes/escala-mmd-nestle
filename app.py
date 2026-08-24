@@ -1,7 +1,7 @@
 import streamlit as st
 
 # Mude para True para tirar o app do ar e False para voltar ao normal
-MODO_MANUTENCAO = False 
+MODO_MANUTENCAO = True 
 
 if MODO_MANUTENCAO:
     st.title("🚧 Portal MMD 🚧")
@@ -11,9 +11,6 @@ if MODO_MANUTENCAO:
     st.stop() # Esta função interrompe a execução do restante do código do app
 
 # --- O RESTANTE DO SEU CÓDIGO DO PORTAL FICA AQUI ABAIXO ---
-# st.write("Menu de Reuniões...")
-
-
 
 import streamlit as st
 import pandas as pd
@@ -137,9 +134,21 @@ def injetar_leitor_acessibilidade(lang_code):
         </script>
     """, height=0, width=0)
 
+# --- ESTRUTURA DOS TIMES E GRUPOS ---
+indireto_br = ["Debora", "Dani", "Dyana", "Luca", "Bruno", "Thiago"]
+fert_br = ["Amanda", "Douglas", "Renan", "Anna"]
+crm_br = ["Julia", "Bruna"]
+direto_br = ["Livia", "Rafael"]
+
+direto_latam = ["Ariel", "Enrique", "Sonia", "Jazmin", "Gisele"]
+fert_latam = ["Florencia", "Jesus", "Bianca M.", "Soledad", "Mijal", "German", "Sebastian", "Andrea", "Honorato", "Nathan", "Rocio"]
+
+time_brasil_completo = sorted(list(set(indireto_br + fert_br + crm_br + direto_br)))
+time_latam_completo = sorted(list(set(direto_latam + fert_latam)))
+time_geral_completo = sorted(list(set(time_brasil_completo + time_latam_completo)))
+
 # --- MOTOR DE REGRAS ---
 SHEET_ID = "1rFbrhxG72T2qhT2lMclAyLtjlHgtqvbxHFrVZ_KlmAU"
-# Adicionamos "&sheet=Backups" para o Python ir direto para a segunda aba
 SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Backups"
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
@@ -178,14 +187,21 @@ def check_login():
         return False
     return True
 
-def gerar_escala_balanceada(nomes):
+def gerar_escala_balanceada(nomes_br, nomes_latam):
     random.seed(42)
-    fila_base = nomes.copy()
-    random.shuffle(fila_base)
-    nomes_dor = [n for n in nomes if n not in ["Dani", "Rafael"]]
+    
+    fila_br = nomes_br.copy()
+    fila_latam = nomes_latam.copy()
+    random.shuffle(fila_br)
+    random.shuffle(fila_latam)
+    
+    todos_nomes = sorted(list(set(nomes_br + nomes_latam)))
+    nomes_dor = [n for n in todos_nomes if n not in ["Dani", "Rafael"]]
     random.shuffle(nomes_dor)
-    cont_total = {n: 0 for n in nomes}
+    
+    cont_total = {n: 0 for n in todos_nomes}
     cont_dor = {n: 0 for n in nomes_dor}
+    
     dias_range = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
     escala = []
     
@@ -194,29 +210,82 @@ def gerar_escala_balanceada(nomes):
         d_nome = t["dias"][d_sem]
         quem_ja_foi = [e['Apresentador'] for e in escala if e['Semana'] == sem]
         
-        ap_m = min([n for n in fila_base if n not in quem_ja_foi], key=lambda x: cont_total[x])
-        cont_total[ap_m] += 1
-        quem_ja_foi.append(ap_m)
+        # --- FLASH MANHÃ (09:45) ---
+        # 1. Brasil
+        cand_br_m = [n for n in fila_br if n not in quem_ja_foi]
+        if not cand_br_m: cand_br_m = fila_br
+        ap_br_m = min(cand_br_m, key=lambda x: cont_total[x])
+        cont_total[ap_br_m] += 1
+        quem_ja_foi.append(ap_br_m)
+        
         escala.append({
-            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": t["flash_m"],
-            "Apresentador": ap_m, "Backup": encontrar_backup_vivo(ap_m, nomes),
-            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_m, nomes), nomes),
-            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_m, nomes), nomes), nomes),
-            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote(t['flash_m'])}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
+            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã (Brasil)", "Região": "Brasil",
+            "Apresentador": ap_br_m, "Backup": encontrar_backup_vivo(ap_br_m, todos_nomes),
+            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_br_m, todos_nomes), todos_nomes),
+            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_br_m, todos_nomes), todos_nomes), todos_nomes),
+            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Manhã Brasil')}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
 
-        tipo_t = "DOR" if d_sem in [1, 3] else "Flash Tarde"
-        cand_t = [n for n in (nomes_dor if tipo_t == "DOR" else fila_base) if n not in quem_ja_foi]
-        ap_t = min(cand_t, key=lambda x: cont_dor[x] if tipo_t == "DOR" else cont_total[x])
-        if tipo_t == "DOR": cont_dor[ap_t] += 1
-        cont_total[ap_t] += 1
+        # 2. LATAM
+        cand_latam_m = [n for n in fila_latam if n not in quem_ja_foi]
+        if not cand_latam_m: cand_latam_m = fila_latam
+        ap_latam_m = min(cand_latam_m, key=lambda x: cont_total[x])
+        cont_total[ap_latam_m] += 1
+        quem_ja_foi.append(ap_latam_m)
+
         escala.append({
-            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": tipo_t,
-            "Apresentador": ap_t, "Backup": encontrar_backup_vivo(ap_t, nomes),
-            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_t, nomes), nomes),
-            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_t, nomes), nomes), nomes),
-            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote(tipo_t)}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
+            "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Manhã (LATAM)", "Região": "LATAM",
+            "Apresentador": ap_latam_m, "Backup": encontrar_backup_vivo(ap_latam_m, todos_nomes),
+            "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_latam_m, todos_nomes), todos_nomes),
+            "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_latam_m, todos_nomes), todos_nomes), todos_nomes),
+            "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Manhã LATAM')}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
+
+        # --- TARDE (15:00) ---
+        if d_sem in [1, 3]: # Terça e Quinta: DOR Geral
+            cand_dor = [n for n in nomes_dor if n not in quem_ja_foi]
+            if not cand_dor: cand_dor = nomes_dor
+            ap_dor = min(cand_dor, key=lambda x: cont_dor[x])
+            cont_dor[ap_dor] += 1
+            cont_total[ap_dor] += 1
+            
+            escala.append({
+                "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "DOR", "Região": "Geral",
+                "Apresentador": ap_dor, "Backup": encontrar_backup_vivo(ap_dor, todos_nomes),
+                "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_dor, todos_nomes), todos_nomes),
+                "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_dor, todos_nomes), todos_nomes), todos_nomes),
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('DOR Geral')}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
+            })
+        else: # Segunda, Quarta e Sexta: Flash Tarde (Brasil + LATAM)
+            # Brasil Tarde
+            cand_br_t = [n for n in fila_br if n not in quem_ja_foi]
+            if not cand_br_t: cand_br_t = fila_br
+            ap_br_t = min(cand_br_t, key=lambda x: cont_total[x])
+            cont_total[ap_br_t] += 1
+            quem_ja_foi.append(ap_br_t)
+
+            escala.append({
+                "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Tarde (Brasil)", "Região": "Brasil",
+                "Apresentador": ap_br_t, "Backup": encontrar_backup_vivo(ap_br_t, todos_nomes),
+                "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_br_t, todos_nomes), todos_nomes),
+                "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_br_t, todos_nomes), todos_nomes), todos_nomes),
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Tarde Brasil')}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
+            })
+
+            # LATAM Tarde
+            cand_latam_t = [n for n in fila_latam if n not in quem_ja_foi]
+            if not cand_latam_t: cand_latam_t = fila_latam
+            ap_latam_t = min(cand_latam_t, key=lambda x: cont_total[x])
+            cont_total[ap_latam_t] += 1
+
+            escala.append({
+                "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Tarde (LATAM)", "Região": "LATAM",
+                "Apresentador": ap_latam_t, "Backup": encontrar_backup_vivo(ap_latam_t, todos_nomes),
+                "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_latam_t, todos_nomes), todos_nomes),
+                "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_latam_t, todos_nomes), todos_nomes), todos_nomes),
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Tarde LATAM')}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
+            })
+            
     return pd.DataFrame(escala)
 
 def exportar_excel_limpo(df_total, mes_nome=None):
@@ -227,37 +296,33 @@ def exportar_excel_limpo(df_total, mes_nome=None):
     meses_map = {i+1: nome for i, nome in enumerate(t["meses"])}
     df_c['Mês'] = df_c['dt_obj'].dt.month.map(meses_map)
     
-    m = df_c[df_c['Reunião'] == t['flash_m']][['Mês', 'Data', 'Dia', 'Apresentador', 'Backup']].rename(columns={'Apresentador':t['resp_m'], 'Backup':t['backup'] + ' M'})
-    t_df = df_c[df_c['Reunião'].isin(['Flash Tarde', 'DOR'])][['Data', 'Apresentador', 'Backup', 'Reunião']].rename(columns={'Apresentador':t['resp_t'], 'Backup':t['backup'] + ' T', 'Reunião':t['tipo_t']})
-    
-    df_f = pd.merge(m, t_df, on='Data', how='outer').fillna("")
-    df_f['dt_sort'] = pd.to_datetime(df_f['Data'], format='%d/%m/%Y')
-    df_f = df_f.sort_values('dt_sort')
-    if mes_nome: df_f = df_f[df_f['Mês'] == mes_nome]
+    if mes_nome: df_c = df_c[df_c['Mês'] == mes_nome]
 
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
         workbook, worksheet = writer.book, writer.book.add_worksheet('Escala')
         h_fmt = workbook.add_format({'bold': True, 'bg_color': '#ff4b4b', 'font_color': 'white', 'border': 1, 'align': 'center'})
         m_fmt = workbook.add_format({'bold': True, 'bg_color': '#A6A6A6', 'border': 1, 'align': 'center', 'valign': 'vcenter'})
         c_fmt = workbook.add_format({'border': 1, 'align': 'center'})
-        cols = ['Data', 'Dia', t['resp_m'], t['backup'] + ' M', t['tipo_t'], t['resp_t'], t['backup'] + ' T']
+        
+        cols = ['Mês', 'Data', 'Dia', 'Reunião', 'Região', 'Apresentador', 'Backup']
         for i, col in enumerate(cols): 
             worksheet.write(0, i, col, h_fmt)
             worksheet.set_column(i, i, 18)
             
         row_idx, mes_atual = 1, ""
-        for _, row in df_f.iterrows():
+        for _, row in df_c.iterrows():
             if row['Mês'] != mes_atual:
                 mes_atual = row['Mês']
                 worksheet.merge_range(row_idx, 0, row_idx, 6, mes_atual.upper(), m_fmt)
                 row_idx += 1
-            for j, c in enumerate(cols): worksheet.write(row_idx, j, row[c] if c in row else "", c_fmt)
+            for j, c in enumerate(cols): worksheet.write(row_idx, j, str(row[c]) if c in row else "", c_fmt)
             row_idx += 1
     return output.getvalue()
 
 def renderizar_card(row):
+    cor_borda = "#0078d4" if row.get('Região') == "Brasil" else "#28a745" if row.get('Região') == "LATAM" else "#ff4b4b"
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid #ff4b4b; min-height: 220px; margin-bottom: 10px; color: #333;">
+    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid {cor_borda}; min-height: 220px; margin-bottom: 10px; color: #333;">
         <b style="font-size: 14px; color: #555;">{row['Reunião']}</b><br><br>
         <span style="font-size: 18px; font-weight: bold; color: #111;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #444;">{t['backup']}: {row['Backup']}</span><br>
@@ -307,18 +372,11 @@ if check_login():
         df_backups['Funcionario'] = df_backups['Funcionario'].astype(str).str.strip()
         df_backups['Backups'] = df_backups['Backups'].astype(str).str.strip()
         MAPA_REFERENCIA = dict(zip(df_backups['Funcionario'], df_backups['Backups']))
-        
-        df_funcionarios = pd.read_csv(URL_PAGINA1)
-        df_funcionarios['Funcionario'] = df_funcionarios['Funcionario'].astype(str).str.strip()
-        
-        nomes = [n for n in df_funcionarios['Funcionario'].unique() if n not in ["Faiha", "Bianca S.", "nan", "None"]]
-        nomes = sorted(nomes)
-        
     except Exception as e:
-        nomes = list(MAPA_REFERENCIA.keys())
+        pass
 
-    # 2. Gera a escala e renderiza a tela principal apenas para quem está logado!
-    df_total = gerar_escala_balanceada(nomes)
+    # 2. Gera a escala usando as listas completas de Brasil e LATAM
+    df_total = gerar_escala_balanceada(time_brasil_completo, time_latam_completo)
     st.title(t["titulo"])
 
     col_e1, col_e2 = st.columns(2)
@@ -331,7 +389,7 @@ if check_login():
             st.download_button(t["baixar"] + f" {t['mes_col']} Completo", exportar_excel_limpo(df_total), "Escala_Anual.xlsx", use_container_width=True)
 
     st.divider()
-    busca = st.selectbox(t["buscar"], [t["todos"]] + nomes)
+    busca = st.selectbox(t["buscar"], [t["todos"]] + time_geral_completo)
     if busca != t["todos"]:
         df_b = df_total[df_total["Apresentador"] == busca].copy()
         st.info(t["stats"].format(nome=busca, total=len(df_b), dor=len(df_b[df_b["Reunião"] == "DOR"])))
@@ -340,8 +398,28 @@ if check_login():
     st.divider()
     s_idx = st.select_slider(t["semana"], options=sorted(df_total["Semana"].unique()), value=datetime.now().isocalendar()[1])
     df_s = df_total[df_total["Semana"] == s_idx]
+    
     for dt, gp in df_s.groupby("Data", sort=False):
-        st.markdown(f"**{gp['Dia'].iloc[0]} - {dt}**")
-        cols = st.columns(len(gp))
-        for i, (_, r) in enumerate(gp.iterrows()):
-            with cols[i]: renderizar_card(r)
+        st.markdown(f"### **{gp['Dia'].iloc[0]} - {dt}**")
+        
+        # Agrupa por turno de reunião para renderizar lado a lado
+        reunioes_manha = gp[gp['Reunião'].str.contains("Manhã")]
+        reunioes_tarde = gp[gp['Reunião'].str.contains("Tarde|DOR")]
+        
+        # --- EXIBIÇÃO MANHÃ ---
+        if not reunioes_manha.empty:
+            st.caption("☀️ **Reuniões da Manhã (09:30)**")
+            cols_m = st.columns(len(reunioes_manha))
+            for i, (_, r) in enumerate(reunioes_manha.iterrows()):
+                with cols_m[i]:
+                    renderizar_card(r)
+
+        # --- EXIBIÇÃO TARDE ---
+        if not reunioes_tarde.empty:
+            st.caption("🌤️ **Reuniões da Tarde (15:00)**")
+            cols_t = st.columns(len(reunioes_tarde))
+            for i, (_, r) in enumerate(reunioes_tarde.iterrows()):
+                with cols_t[i]:
+                    renderizar_card(r)
+        
+        st.write("")
