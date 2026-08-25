@@ -356,7 +356,7 @@ if check_login():
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
         **Indireto Brasil:** Debora, Dani, Dyana, Luca, Bruno, Thiago, Tobias
-        \n**Material Fert Brasil:** Amanda, Douglas, Renan, Anna
+        \n**Material Fert Brasil:** Amanda, Douglas, Renan, Anna Laura
         \n**CRM:** Julia, Bruna 
         \n**Material Direto Brasil:** Livia, Rafael
         \n**Material Direto Latam:** Ariel, Enrique, Sonia, Jazmin, Gisele
