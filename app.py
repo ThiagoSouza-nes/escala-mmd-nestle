@@ -137,7 +137,7 @@ def injetar_leitor_acessibilidade(lang_code):
 # --- ESTRUTURA DOS TIMES E GRUPOS ---
 indireto_br = ["Debora", "Dani", "Dyana", "Luca", "Bruno", "Thiago"]
 fert_br = ["Amanda", "Douglas", "Renan", "Anna Laura"]
-crm_br = ["Julia", "Bruna"]
+crm_br = ["Julia"]
 direto_br = ["Livia", "Rafael"]
 
 direto_latam = ["Ariel", "Enrique", "Sonia", "Jazmin", "Gisele"]
