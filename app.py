@@ -137,7 +137,6 @@ def injetar_leitor_acessibilidade(lang_code):
 # --- ESTRUTURA DOS TIMES E GRUPOS ---
 indireto_br = ["Debora", "Dani", "Dyana", "Luca", "Bruno", "Thiago"]
 fert_br = ["Amanda", "Douglas", "Renan", "Anna Laura"]
-crm_br = ["Julia"]
 direto_br = ["Livia", "Rafael"]
 
 direto_latam = ["Ariel", "Enrique", "Sonia", "Jazmin", "Gisele"]
@@ -355,9 +354,8 @@ if check_login():
 
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
-        **Indireto Brasil:** Debora, Dani, Dyana, Luca, Bruno, Thiago, Tobias
+        **Indireto Brasil:** Debora, Dani, Dyana, Luca, Bruno, Thiago
         \n**Material Fert Brasil:** Amanda, Douglas, Renan, Anna Laura
-        \n**CRM:** Julia, Bruna 
         \n**Material Direto Brasil:** Livia, Rafael
         \n**Material Direto Latam:** Ariel, Enrique, Sonia, Jazmin, Gisele
         \n**Fert Latam:** Florencia, Jesus, Bianca, Soledad, Mijal, German, Sebastian, Estefanía, Andrea, Honorato, Nathan, Rocio, Faiha
