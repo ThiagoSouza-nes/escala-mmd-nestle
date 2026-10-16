@@ -194,6 +194,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
     
     cont_total = {n: 0 for n in todos_nomes}
     cont_dor = {n: 0 for n in todos_nomes}
+    cont_wor = {n: 0 for n in todos_nomes}  # NOVO: Contador exclusivo para WOR
     
     dias_range = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
     escala = []
@@ -235,9 +236,11 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
 
         # --- WOR TERÇA-FEIRA (10:30) ---
         if d_sem == 1: 
+            # Sorteio com base no contador exclusivo de WOR
             cand_wor_br = [n for n in wor_br_list if n not in quem_ja_foi]
             if not cand_wor_br: cand_wor_br = wor_br_list
-            ap_wor_br = min(cand_wor_br, key=lambda x: cont_total[x])
+            ap_wor_br = min(cand_wor_br, key=lambda x: cont_wor[x])
+            cont_wor[ap_wor_br] += 1
             cont_total[ap_wor_br] += 1
             quem_ja_foi.append(ap_wor_br)
             
@@ -251,7 +254,8 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
 
             cand_wor_latam = [n for n in wor_latam_list if n not in quem_ja_foi]
             if not cand_wor_latam: cand_wor_latam = wor_latam_list
-            ap_wor_latam = min(cand_wor_latam, key=lambda x: cont_total[x])
+            ap_wor_latam = min(cand_wor_latam, key=lambda x: cont_wor[x])
+            cont_wor[ap_wor_latam] += 1
             cont_total[ap_wor_latam] += 1
             quem_ja_foi.append(ap_wor_latam)
 
@@ -348,7 +352,7 @@ def exportar_excel_limpo(df_total, mes_nome=None):
     return output.getvalue()
 
 def renderizar_card(row):
-    # Nova Lógica de Estilização Dinâmica
+    # Lógica de Estilização Dinâmica
     is_dor = row.get('Reunião') == "DOR"
     
     if is_dor:
