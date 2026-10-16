@@ -180,7 +180,7 @@ def check_login():
         return False
     return True
 
-def gerar_escala_balanceada(nomes_br, nomes_latam):
+def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
     random.seed(42)
     
     fila_br = nomes_br.copy()
@@ -235,6 +235,38 @@ def gerar_escala_balanceada(nomes_br, nomes_latam):
             "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_latam_m, todos_nomes), todos_nomes), todos_nomes),
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Manhã LATAM')}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
+
+        # --- WOR TERÇA-FEIRA (10:30) ---
+        if d_sem == 1: 
+            # WOR Brasil (Indireto / Fert / Automation)
+            cand_wor_br = [n for n in wor_br_list if n not in quem_ja_foi]
+            if not cand_wor_br: cand_wor_br = wor_br_list
+            ap_wor_br = min(cand_wor_br, key=lambda x: cont_total[x])
+            cont_total[ap_wor_br] += 1
+            quem_ja_foi.append(ap_wor_br)
+            
+            escala.append({
+                "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "WOR Brasil", "Região": "Brasil",
+                "Apresentador": ap_wor_br, "Backup": encontrar_backup_vivo(ap_wor_br, todos_nomes),
+                "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_br, todos_nomes), todos_nomes),
+                "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_br, todos_nomes), todos_nomes), todos_nomes),
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('WOR - Indireto / Fert / Automation')}&startdt={dia.strftime('%Y-%m-%d')}T10:30:00"
+            })
+
+            # WOR Latam
+            cand_wor_latam = [n for n in wor_latam_list if n not in quem_ja_foi]
+            if not cand_wor_latam: cand_wor_latam = wor_latam_list
+            ap_wor_latam = min(cand_wor_latam, key=lambda x: cont_total[x])
+            cont_total[ap_wor_latam] += 1
+            quem_ja_foi.append(ap_wor_latam)
+
+            escala.append({
+                "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "WOR Latam", "Região": "LATAM",
+                "Apresentador": ap_wor_latam, "Backup": encontrar_backup_vivo(ap_wor_latam, todos_nomes),
+                "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_latam, todos_nomes), todos_nomes),
+                "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_latam, todos_nomes), todos_nomes), todos_nomes),
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('WOR Latam')}&startdt={dia.strftime('%Y-%m-%d')}T10:30:00"
+            })
 
         # --- TARDE (15:00) ---
         if d_sem == 2: # Quarta-feira: DOR Geral
@@ -391,8 +423,14 @@ if check_login():
     except Exception as e:
         pass
 
-    # 2. Gera a escala usando as listas completas de Brasil e LATAM
-    df_total = gerar_escala_balanceada(time_brasil_completo, time_latam_completo)
+    # 2. Gera a escala passando as listas para o WOR (Brasil = Indireto+Fert, Latam = Fert Latam)
+    df_total = gerar_escala_balanceada(
+        time_brasil_completo, 
+        time_latam_completo, 
+        indireto_br + fert_br, 
+        fert_latam
+    )
+    
     st.title(t["titulo"])
 
     col_e1, col_e2 = st.columns(2)
@@ -415,16 +453,32 @@ if check_login():
     s_idx = st.select_slider(t["semana"], options=sorted(df_total["Semana"].unique()), value=datetime.now().isocalendar()[1])
     df_s = df_total[df_total["Semana"] == s_idx]
     
+    # --- RENDERIZAÇÃO DO WOR EXCLUSIVO NO SIDEBAR ---
+    st.sidebar.divider()
+    st.sidebar.markdown(f"### 📅 WOR (Semana {s_idx})")
+    st.sidebar.caption("Toda Terça-feira às 10:30")
+    
+    wor_br_row = df_s[df_s["Reunião"] == "WOR Brasil"]
+    if not wor_br_row.empty:
+        r = wor_br_row.iloc[0]
+        st.sidebar.info(f"**WOR - Indireto / Fert / Automation**\n\n🏆 **{r['Apresentador']}**\n\n🔄 Backup: {r['Backup']}")
+
+    wor_latam_row = df_s[df_s["Reunião"] == "WOR Latam"]
+    if not wor_latam_row.empty:
+        r = wor_latam_row.iloc[0]
+        st.sidebar.success(f"**WOR Latam**\n\n🏆 **{r['Apresentador']}**\n\n🔄 Backup: {r['Backup']}")
+
+    # --- RENDERIZAÇÃO DA TELA PRINCIPAL ---
     for dt, gp in df_s.groupby("Data", sort=False):
         st.markdown(f"### **{gp['Dia'].iloc[0]} - {dt}**")
         
-        # Agrupa por turno de reunião para renderizar lado a lado
+        # Agrupa por turno filtrando apenas "Manhã" e "Tarde|DOR" (Oculta os WORs dessa área principal)
         reunioes_manha = gp[gp['Reunião'].str.contains("Manhã")]
         reunioes_tarde = gp[gp['Reunião'].str.contains("Tarde|DOR")]
         
         # --- EXIBIÇÃO MANHÃ ---
         if not reunioes_manha.empty:
-            st.caption("☀️ **Reuniões da Manhã (09:30)**")
+            st.caption("☀️ **Reuniões da Manhã (09:45)**")
             cols_m = st.columns(len(reunioes_manha))
             for i, (_, r) in enumerate(reunioes_manha.iterrows()):
                 with cols_m[i]:
