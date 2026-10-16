@@ -1,4 +1,10 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime
+import urllib.parse
+import streamlit.components.v1 as components
+import io
+import random
 
 # Mude para True para tirar o app do ar e False para voltar ao normal
 MODO_MANUTENCAO = False 
@@ -7,18 +13,8 @@ if MODO_MANUTENCAO:
     st.title("🚧 Portal MMD 🚧")
     st.subheader("Sistema em Manutenção")
     st.info("Estamos atualizando a base de dados e inserindo os novos colaboradores. O portal estará de volta em breve com novidades!")
-    st.image("https://cdn-icons-png.flaticon.com/512/3251/3251465.png", width=200) # Opcional: ícone de engrenagem/construção
-    st.stop() # Esta função interrompe a execução do restante do código do app
-
-# --- O RESTANTE DO SEU CÓDIGO DO PORTAL FICA AQUI ABAIXO ---
-
-import streamlit as st
-import pandas as pd
-from datetime import datetime
-import urllib.parse
-import streamlit.components.v1 as components
-import io
-import random
+    st.image("https://cdn-icons-png.flaticon.com/512/3251/3251465.png", width=200)
+    st.stop() 
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="MMD | Portal de Escalas", layout="wide")
@@ -195,11 +191,13 @@ def gerar_escala_balanceada(nomes_br, nomes_latam):
     random.shuffle(fila_latam)
     
     todos_nomes = sorted(list(set(nomes_br + nomes_latam)))
-    nomes_dor = [n for n in todos_nomes if n not in ["Dani", "Rafael"]]
-    random.shuffle(nomes_dor)
+    
+    # Separando listas de quem pode apresentar a DOR (excluindo Dani e Rafael)
+    nomes_dor_br = [n for n in fila_br if n not in ["Dani", "Rafael"]]
+    nomes_dor_latam = [n for n in fila_latam if n not in ["Dani", "Rafael"]]
     
     cont_total = {n: 0 for n in todos_nomes}
-    cont_dor = {n: 0 for n in nomes_dor}
+    cont_dor = {n: 0 for n in todos_nomes}
     
     dias_range = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
     escala = []
@@ -241,12 +239,19 @@ def gerar_escala_balanceada(nomes_br, nomes_latam):
         })
 
         # --- TARDE (15:00) ---
-        if d_sem in [1, 3]: # Terça e Quinta: DOR Geral
-            cand_dor = [n for n in nomes_dor if n not in quem_ja_foi]
-            if not cand_dor: cand_dor = nomes_dor
+        if d_sem == 2: # Quarta-feira: DOR Geral
+            # Alternância de apresentação DOR por semana: Semanas pares -> Brasil, Semanas ímpares -> LATAM
+            if sem % 2 == 0:
+                cand_dor = [n for n in nomes_dor_br if n not in quem_ja_foi]
+                if not cand_dor: cand_dor = nomes_dor_br
+            else:
+                cand_dor = [n for n in nomes_dor_latam if n not in quem_ja_foi]
+                if not cand_dor: cand_dor = nomes_dor_latam
+            
             ap_dor = min(cand_dor, key=lambda x: cont_dor[x])
             cont_dor[ap_dor] += 1
             cont_total[ap_dor] += 1
+            quem_ja_foi.append(ap_dor)
             
             escala.append({
                 "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "DOR", "Região": "Geral",
@@ -255,7 +260,8 @@ def gerar_escala_balanceada(nomes_br, nomes_latam):
                 "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_dor, todos_nomes), todos_nomes), todos_nomes),
                 "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('DOR Geral')}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
             })
-        else: # Segunda, Quarta e Sexta: Flash Tarde (Brasil + LATAM)
+            
+        else: # Segunda, Terça, Quinta e Sexta: Flash Tarde (Brasil + LATAM)
             # Brasil Tarde
             cand_br_t = [n for n in fila_br if n not in quem_ja_foi]
             if not cand_br_t: cand_br_t = fila_br
@@ -276,6 +282,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam):
             if not cand_latam_t: cand_latam_t = fila_latam
             ap_latam_t = min(cand_latam_t, key=lambda x: cont_total[x])
             cont_total[ap_latam_t] += 1
+            quem_ja_foi.append(ap_latam_t)
 
             escala.append({
                 "Semana": sem, "Data": data_s, "Dia": d_nome, "Reunião": "Flash Tarde (LATAM)", "Região": "LATAM",
