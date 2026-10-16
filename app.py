@@ -194,7 +194,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
     
     cont_total = {n: 0 for n in todos_nomes}
     cont_dor = {n: 0 for n in todos_nomes}
-    cont_wor = {n: 0 for n in todos_nomes}  # NOVO: Contador exclusivo para WOR
+    cont_wor = {n: 0 for n in todos_nomes}
     
     dias_range = pd.date_range(datetime(2026, 1, 1), datetime(2026, 12, 31), freq='B')
     escala = []
@@ -236,7 +236,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
 
         # --- WOR TERÇA-FEIRA (10:30) ---
         if d_sem == 1: 
-            # Sorteio com base no contador exclusivo de WOR
             cand_wor_br = [n for n in wor_br_list if n not in quem_ja_foi]
             if not cand_wor_br: cand_wor_br = wor_br_list
             ap_wor_br = min(cand_wor_br, key=lambda x: cont_wor[x])
@@ -352,11 +351,10 @@ def exportar_excel_limpo(df_total, mes_nome=None):
     return output.getvalue()
 
 def renderizar_card(row):
-    # Lógica de Estilização Dinâmica
     is_dor = row.get('Reunião') == "DOR"
     
     if is_dor:
-        cor_borda = "#8a2be2"  # Roxo Premium para DOR
+        cor_borda = "#8a2be2"  
         bg_color = "#f8f5ff"
         shadow = "box-shadow: 0 4px 8px rgba(138, 43, 226, 0.15);"
         btn_color = "linear-gradient(to right, #8a2be2, #6a1b9a)"
@@ -415,9 +413,9 @@ if check_login():
 
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
-        **Indireto Brasil:** Debora, Dani, Dyana, Luca, Bruno, Thiago
+        **Indireto Brasil:** Debora, Dani, Dyana, Luca, Bruno, Thiago, Facundo
         \n**Material Fert Brasil:** Amanda, Douglas, Renan, Anna Laura
-        \n**Material Direto Brasil:** Livia, Rafael
+        \n**Material Direto Brasil:** Livia, Rafael, Thais
         \n**Material Direto Latam:** Ariel, Enrique, Sonia, Jazmin, Gisele
         \n**Fert Latam:** Florencia, Jesus, Bianca, Soledad, Mijal, German, Sebastian, Estefanía, Andrea, Honorato, Nathan, Rocio, Faiha
         """)
@@ -431,10 +429,13 @@ if check_login():
     except Exception as e:
         pass
 
+    # --- CORREÇÃO AQUI: Filtrando explicitamente Dani e Debora da lista do WOR Brasil ---
+    wor_brasil_participantes = [func for func in (indireto_br + fert_br) if func not in ["Dani", "Debora"]]
+
     df_total = gerar_escala_balanceada(
         time_brasil_completo, 
         time_latam_completo, 
-        indireto_br + fert_br, 
+        wor_brasil_participantes, 
         fert_latam
     )
     
