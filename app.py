@@ -142,7 +142,6 @@ time_geral_completo = sorted(list(set(time_brasil_completo + time_latam_completo
 
 # --- MOTOR DE REGRAS ---
 SHEET_ID = "1rFbrhxG72T2qhT2lMclAyLtjlHgtqvbxHFrVZ_KlmAU"
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Backups"
 USER_ACCESS = "MMD-Board"
 PASS_ACCESS = "@MMD123#"
 
@@ -190,7 +189,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
     
     todos_nomes = sorted(list(set(nomes_br + nomes_latam)))
     
-    # Separando listas de quem pode apresentar a DOR (excluindo Dani e Rafael)
     nomes_dor_br = [n for n in fila_br if n not in ["Dani", "Rafael"]]
     nomes_dor_latam = [n for n in fila_latam if n not in ["Dani", "Rafael"]]
     
@@ -205,8 +203,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
         d_nome = t["dias"][d_sem]
         quem_ja_foi = [e['Apresentador'] for e in escala if e['Semana'] == sem]
         
-        # --- FLASH MANHÃ (09:45) ---
-        # 1. Brasil
+        # 1. Brasil (Manhã)
         cand_br_m = [n for n in fila_br if n not in quem_ja_foi]
         if not cand_br_m: cand_br_m = fila_br
         ap_br_m = min(cand_br_m, key=lambda x: cont_total[x])
@@ -221,7 +218,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
             "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Manhã Brasil')}&startdt={dia.strftime('%Y-%m-%d')}T09:45:00"
         })
 
-        # 2. LATAM
+        # 2. LATAM (Manhã)
         cand_latam_m = [n for n in fila_latam if n not in quem_ja_foi]
         if not cand_latam_m: cand_latam_m = fila_latam
         ap_latam_m = min(cand_latam_m, key=lambda x: cont_total[x])
@@ -238,7 +235,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
 
         # --- WOR TERÇA-FEIRA (10:30) ---
         if d_sem == 1: 
-            # WOR Brasil (Indireto / Fert / Automation)
             cand_wor_br = [n for n in wor_br_list if n not in quem_ja_foi]
             if not cand_wor_br: cand_wor_br = wor_br_list
             ap_wor_br = min(cand_wor_br, key=lambda x: cont_total[x])
@@ -250,10 +246,9 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
                 "Apresentador": ap_wor_br, "Backup": encontrar_backup_vivo(ap_wor_br, todos_nomes),
                 "Backup2": encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_br, todos_nomes), todos_nomes),
                 "BackupOculto": encontrar_backup_vivo(encontrar_backup_vivo(encontrar_backup_vivo(ap_wor_br, todos_nomes), todos_nomes), todos_nomes),
-                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('WOR - Indireto / Fert / Automation')}&startdt={dia.strftime('%Y-%m-%d')}T10:30:00"
+                "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('WOR Brasil')}&startdt={dia.strftime('%Y-%m-%d')}T10:30:00"
             })
 
-            # WOR Latam
             cand_wor_latam = [n for n in wor_latam_list if n not in quem_ja_foi]
             if not cand_wor_latam: cand_wor_latam = wor_latam_list
             ap_wor_latam = min(cand_wor_latam, key=lambda x: cont_total[x])
@@ -270,7 +265,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
 
         # --- TARDE (15:00) ---
         if d_sem == 2: # Quarta-feira: DOR Geral
-            # Alternância de apresentação DOR por semana: Semanas pares -> Brasil, Semanas ímpares -> LATAM
             if sem % 2 == 0:
                 cand_dor = [n for n in nomes_dor_br if n not in quem_ja_foi]
                 if not cand_dor: cand_dor = nomes_dor_br
@@ -292,7 +286,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
             })
             
         else: # Segunda, Terça, Quinta e Sexta: Flash Tarde (Brasil + LATAM)
-            # Brasil Tarde
             cand_br_t = [n for n in fila_br if n not in quem_ja_foi]
             if not cand_br_t: cand_br_t = fila_br
             ap_br_t = min(cand_br_t, key=lambda x: cont_total[x])
@@ -307,7 +300,6 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
                 "Link": f"https://outlook.office.com/calendar/0/deeplink/compose?subject={urllib.parse.quote('Flash Tarde Brasil')}&startdt={dia.strftime('%Y-%m-%d')}T15:00:00"
             })
 
-            # LATAM Tarde
             cand_latam_t = [n for n in fila_latam if n not in quem_ja_foi]
             if not cand_latam_t: cand_latam_t = fila_latam
             ap_latam_t = min(cand_latam_t, key=lambda x: cont_total[x])
@@ -356,14 +348,29 @@ def exportar_excel_limpo(df_total, mes_nome=None):
     return output.getvalue()
 
 def renderizar_card(row):
-    cor_borda = "#0078d4" if row.get('Região') == "Brasil" else "#28a745" if row.get('Região') == "LATAM" else "#ff4b4b"
+    # Nova Lógica de Estilização Dinâmica
+    is_dor = row.get('Reunião') == "DOR"
+    
+    if is_dor:
+        cor_borda = "#8a2be2"  # Roxo Premium para DOR
+        bg_color = "#f8f5ff"
+        shadow = "box-shadow: 0 4px 8px rgba(138, 43, 226, 0.15);"
+        btn_color = "linear-gradient(to right, #8a2be2, #6a1b9a)"
+        header_text = "⭐ REVISÃO GERAL (DOR) ⭐"
+    else:
+        cor_borda = "#0078d4" if row.get('Região') == "Brasil" else "#28a745" if row.get('Região') == "LATAM" else "#ff4b4b"
+        bg_color = "#f0f2f6"
+        shadow = "box-shadow: 0 2px 4px rgba(0,0,0,0.05);"
+        btn_color = cor_borda
+        header_text = row['Reunião']
+
     st.markdown(f"""
-    <div style="background-color: #f0f2f6; padding: 15px; border-radius: 10px; border-left: 5px solid {cor_borda}; min-height: 220px; margin-bottom: 10px; color: #333;">
-        <b style="font-size: 14px; color: #555;">{row['Reunião']}</b><br><br>
+    <div style="background-color: {bg_color}; padding: 15px; border-radius: 10px; border-left: 6px solid {cor_borda}; {shadow} min-height: 220px; margin-bottom: 10px; color: #333; position: relative;">
+        <b style="font-size: 13px; color: {cor_borda}; text-transform: uppercase;">{header_text}</b><br><br>
         <span style="font-size: 18px; font-weight: bold; color: #111;">🏆 {row['Apresentador']}</span><br><br>
         <span style="font-size: 13px; color: #444;">{t['backup']}: {row['Backup']}</span><br>
         <span title="{t['backup_oculto']}: {row['BackupOculto']}" style="font-size: 13px; color: #444; cursor: help;">{t['backup2']}: {row['Backup2']}</span>
-        <div style="margin-top: 15px;"><a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background-color: #0078d4; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">{t['agendar']}</a></div>
+        <div style="margin-top: 15px;"><a href="{row['Link']}" target="_blank" style="display: block; text-decoration: none; color: white; background: {btn_color}; padding: 8px; border-radius: 5px; font-size: 11px; text-align: center; font-weight: bold;">{t['agendar']}</a></div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -411,11 +418,8 @@ if check_login():
         \n**Fert Latam:** Florencia, Jesus, Bianca, Soledad, Mijal, German, Sebastian, Estefanía, Andrea, Honorato, Nathan, Rocio, Faiha
         """)
 
-    # 1. Carrega as informações das planilhas de forma segura dentro do Login
     try:
-        URL_PAGINA1 = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Página1"
         URL_BACKUPS = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Backups"
-        
         df_backups = pd.read_csv(URL_BACKUPS)
         df_backups['Funcionario'] = df_backups['Funcionario'].astype(str).str.strip()
         df_backups['Backups'] = df_backups['Backups'].astype(str).str.strip()
@@ -423,7 +427,6 @@ if check_login():
     except Exception as e:
         pass
 
-    # 2. Gera a escala passando as listas para o WOR (Brasil = Indireto+Fert, Latam = Fert Latam)
     df_total = gerar_escala_balanceada(
         time_brasil_completo, 
         time_latam_completo, 
@@ -453,7 +456,7 @@ if check_login():
     s_idx = st.select_slider(t["semana"], options=sorted(df_total["Semana"].unique()), value=datetime.now().isocalendar()[1])
     df_s = df_total[df_total["Semana"] == s_idx]
     
-    # --- RENDERIZAÇÃO DO WOR EXCLUSIVO NO SIDEBAR ---
+    # --- RENDERIZAÇÃO DOS CARDS WOR NO SIDEBAR ---
     st.sidebar.divider()
     st.sidebar.markdown(f"### 📅 WOR (Semana {s_idx})")
     st.sidebar.caption("Toda Terça-feira às 10:30")
@@ -461,22 +464,34 @@ if check_login():
     wor_br_row = df_s[df_s["Reunião"] == "WOR Brasil"]
     if not wor_br_row.empty:
         r = wor_br_row.iloc[0]
-        st.sidebar.info(f"**WOR - Indireto / Fert / Automation**\n\n🏆 **{r['Apresentador']}**\n\n🔄 Backup: {r['Backup']}")
+        html_wor_br = f"""
+        <div style="background: linear-gradient(135deg, #0078d4 0%, #005a9e 100%); padding: 15px; border-radius: 8px; color: white; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="font-size: 13px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; color: #e1f0ff;">🇧🇷 WOR BRASIL</div>
+            <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🏆 {r['Apresentador']}</div>
+            <div style="font-size: 13px; color: #cce4ff;">🔄 Backup: {r['Backup']}</div>
+        </div>
+        """
+        st.sidebar.markdown(html_wor_br, unsafe_allow_html=True)
 
     wor_latam_row = df_s[df_s["Reunião"] == "WOR Latam"]
     if not wor_latam_row.empty:
         r = wor_latam_row.iloc[0]
-        st.sidebar.success(f"**WOR Latam**\n\n🏆 **{r['Apresentador']}**\n\n🔄 Backup: {r['Backup']}")
+        html_wor_latam = f"""
+        <div style="background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); padding: 15px; border-radius: 8px; color: white; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+            <div style="font-size: 13px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; color: #d4edda;">🌎 WOR LATAM</div>
+            <div style="font-size: 18px; font-weight: bold; margin-bottom: 8px;">🏆 {r['Apresentador']}</div>
+            <div style="font-size: 13px; color: #c3e6cb;">🔄 Backup: {r['Backup']}</div>
+        </div>
+        """
+        st.sidebar.markdown(html_wor_latam, unsafe_allow_html=True)
 
     # --- RENDERIZAÇÃO DA TELA PRINCIPAL ---
     for dt, gp in df_s.groupby("Data", sort=False):
         st.markdown(f"### **{gp['Dia'].iloc[0]} - {dt}**")
         
-        # Agrupa por turno filtrando apenas "Manhã" e "Tarde|DOR" (Oculta os WORs dessa área principal)
         reunioes_manha = gp[gp['Reunião'].str.contains("Manhã")]
         reunioes_tarde = gp[gp['Reunião'].str.contains("Tarde|DOR")]
         
-        # --- EXIBIÇÃO MANHÃ ---
         if not reunioes_manha.empty:
             st.caption("☀️ **Reuniões da Manhã (09:45)**")
             cols_m = st.columns(len(reunioes_manha))
@@ -484,7 +499,6 @@ if check_login():
                 with cols_m[i]:
                     renderizar_card(r)
 
-        # --- EXIBIÇÃO TARDE ---
         if not reunioes_tarde.empty:
             st.caption("🌤️ **Reuniões da Tarde (15:00)**")
             cols_t = st.columns(len(reunioes_tarde))
