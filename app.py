@@ -29,8 +29,7 @@ I18N = {
         "senha": "Senha",
         "acessar": "Acessar Painel",
         "acessibilidade": "Ativar Acessibilidade",
-        "roteiro_ter": "📝 Roteiro Terça: Práticas + Iniciativas",
-        "roteiro_qui": "📝 Roteiro Quinta: Lead Time + SLA",
+        "roteiro_qua": "📝 Roteiro Quarta: Revisão Geral de Métricas (DOR)",
         "estrutura_tit": "👥 Estrutura de Times",
         "exp_mes": "📂 Exportar Mês",
         "exp_ano": "📅 Exportar Ano",
@@ -66,8 +65,7 @@ I18N = {
         "senha": "Contraseña",
         "acessar": "Acceder al Panel",
         "acessibilidade": "Activar Accesibilidad",
-        "roteiro_ter": "📝 Guion Martes: Prácticas + Iniciativas",
-        "roteiro_qui": "📝 Guion Jueves: Lead Time + SLA",
+        "roteiro_qua": "📝 Guion Miércoles: Revisión General de Métricas (DOR)",
         "estrutura_tit": "👥 Estructura de Equipos",
         "exp_mes": "📂 Exportar Mes",
         "exp_ano": "📅 Exportar Año",
@@ -351,13 +349,26 @@ if check_login():
         injetar_leitor_acessibilidade(t["lang_code"])
     
     st.sidebar.divider()
-    with st.sidebar.expander(t["roteiro_ter"], expanded=False):
-        st.markdown(f"**Pauta:** {t['pauta']['prac']} + {t['pauta']['ini']} + {t['pauta']['track']} + {t['pauta']['work']}")
-        st.markdown(f"- {t['pauta']['lista']}\n- {t['pauta']['tk']}\n- {t['pauta']['escala']}\n- {t['pauta']['behavior']}\n- {t['pauta']['plan']}\n- {t['pauta']['prac']}\n- {t['pauta']['nps']}\n- {t['pauta']['ini']}\n- {t['pauta']['track']}\n- {t['pauta']['work']}\n- {t['pauta']['plan']} ({t['pauta']['issue']})\n- 🛡 SHE\n- 🏆 Behavior")
-
-    with st.sidebar.expander(t["roteiro_qui"], expanded=False):
-        st.markdown(f"**Pauta:** {t['pauta']['lt']} + {t['pauta']['ftr']} + {t['pauta']['cats']} + {t['pauta']['work']}")
-        st.markdown(f"- {t['pauta']['lista']}\n- {t['pauta']['tk']}\n- {t['pauta']['escala']}\n- {t['pauta']['behavior']}\n- {t['pauta']['plan']}\n- {t['pauta']['lt']}\n- {t['pauta']['ftr']}\n- {t['pauta']['cats']}\n- {t['pauta']['work']}\n- {t['pauta']['issue']}\n- {t['pauta']['plan']}\n- 🛡 SHE\n- 🏆 Behavior")
+    with st.sidebar.expander(t["roteiro_qua"], expanded=False):
+        st.markdown("**Pauta Única:** Métricas e Indicadores Gerais")
+        st.markdown(
+            f"- {t['pauta']['lista']}\n"
+            f"- {t['pauta']['tk']}\n"
+            f"- {t['pauta']['escala']}\n"
+            f"- {t['pauta']['behavior']}\n"
+            f"- {t['pauta']['plan']}\n"
+            f"- {t['pauta']['prac']}\n"
+            f"- {t['pauta']['nps']}\n"
+            f"- {t['pauta']['ini']}\n"
+            f"- {t['pauta']['track']}\n"
+            f"  - {t['pauta']['lt']}\n"
+            f"  - {t['pauta']['ftr']}\n"
+            f"- {t['pauta']['cats']}\n"
+            f"- {t['pauta']['work']}\n"
+            f"- {t['pauta']['plan']} ({t['pauta']['issue']})\n"
+            f"- 🛡 SHE\n"
+            f"- 🏆 Behavior"
+        )
 
     with st.sidebar.expander(t["estrutura_tit"], expanded=False):
         st.markdown("""
