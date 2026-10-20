@@ -235,11 +235,14 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
         })
 
         # --- WOR TERÇA-FEIRA (10:30) ---
-        if d_sem == 1: 
-            cand_wor_br = [n for n in wor_br_list if n not in quem_ja_foi]
-            if not cand_wor_br: cand_wor_br = wor_br_list
-            ap_wor_br = min(cand_wor_br, key=lambda x: cont_wor[x])
-            cont_wor[ap_wor_br] += 1
+if d_sem == 1: 
+            # --- NOVA REGRA FIXA SEQUENCIAL: WOR BRASIL ---
+            lista_wor_br = ["Amanda", "Mayara", "Thais", "Lucca"]
+            
+            idx_wor = (sem - 43) % len(lista_wor_br)
+            ap_wor_br = lista_wor_br[idx_wor]
+            
+            if ap_wor_br not in cont_total: cont_total[ap_wor_br] = 0
             cont_total[ap_wor_br] += 1
             quem_ja_foi.append(ap_wor_br)
             
