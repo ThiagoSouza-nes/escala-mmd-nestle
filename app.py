@@ -270,7 +270,7 @@ def gerar_escala_balanceada(nomes_br, nomes_latam, wor_br_list, wor_latam_list):
             })
 
         # --- TARDE (15:00) ---
-if d_sem == 2: # Quarta-feira: DOR Geral
+        if d_sem == 2: # Quarta-feira: DOR Geral
             if sem % 2 == 0:
                 cand_dor = [n for n in nomes_dor_br if n not in quem_ja_foi]
                 if not cand_dor: cand_dor = nomes_dor_br
